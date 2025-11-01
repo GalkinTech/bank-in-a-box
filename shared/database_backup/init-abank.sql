@@ -1,6 +1,6 @@
--- VBank - создание таблиц и тестовые данные
+-- ABank - создание таблиц и тестовые данные
 
--- Создание таблиц
+-- Создание таблиц (те же что в vbank)
 CREATE TABLE IF NOT EXISTS clients (
     id SERIAL PRIMARY KEY,
     person_id VARCHAR(100) UNIQUE,
@@ -88,42 +88,44 @@ CREATE TABLE IF NOT EXISTS bank_capital (
 
 -- Клиенты
 INSERT INTO clients (person_id, client_type, full_name, segment, birth_year, monthly_income) VALUES
-('cli-vb-001', 'individual', 'Иванов Иван Иванович', 'employee', 1985, 80000),
-('cli-vb-002', 'individual', 'Петрова Мария Сергеевна', 'employee', 1990, 95000),
-('cli-vb-003', 'individual', 'Сидоров Петр Алексеевич', 'pensioner', 1955, 25000),
-('cli-vb-004', 'legal', 'ООО Рога и Копыта', 'small_business', NULL, 500000),
-('cli-vb-005', 'individual', 'Козлов Алексей Дмитриевич', 'student', 2001, 15000);
+('cli-ab-001', 'individual', 'Смирнова Анна Викторовна', 'employee', 1988, 120000),
+('cli-ab-002', 'individual', 'Волков Дмитрий Павлович', 'employee', 1982, 150000),
+('cli-ab-003', 'individual', 'Новикова Елена Андреевна', 'entrepreneur', 1975, 200000),
+('cli-ab-004', 'legal', 'ООО Инновации', 'startup', NULL, 800000),
+('cli-ab-005', 'individual', 'Морозов Сергей Игоревич', 'employee', 1995, 65000);
 
 -- Счета
 INSERT INTO accounts (client_id, account_number, account_type, balance, currency, status) VALUES
-(1, '40817810099910001001', 'checking', 125000.50, 'RUB', 'active'),
-(1, '42301810099910001002', 'savings', 250000.00, 'RUB', 'active'),
-(2, '40817810099910002001', 'checking', 185000.75, 'RUB', 'active'),
-(3, '40817810099910003001', 'checking', 45000.00, 'RUB', 'active'),
-(4, '40702810099910004001', 'checking', 1250000.00, 'RUB', 'active'),
-(5, '40817810099910005001', 'checking', 8500.25, 'RUB', 'active');
+(1, '40817810099920001001', 'checking', 320000.00, 'RUB', 'active'),
+(2, '40817810099920002001', 'checking', 450000.50, 'RUB', 'active'),
+(2, '42301810099920002002', 'savings', 800000.00, 'RUB', 'active'),
+(3, '40817810099920003001', 'checking', 550000.75, 'RUB', 'active'),
+(4, '40702810099920004001', 'checking', 2100000.00, 'RUB', 'active'),
+(5, '40817810099920005001', 'checking', 95000.30, 'RUB', 'active');
 
--- Транзакции (последние)
+-- Транзакции
 INSERT INTO transactions (account_id, transaction_id, amount, direction, counterparty, description, transaction_date) VALUES
-(1, 'tx-vb-001-001', 80000.00, 'credit', 'ООО Работодатель', 'Зачисление зарплаты', '2025-10-01 10:00:00'),
-(1, 'tx-vb-001-002', -5000.00, 'debit', 'Продуктовый магазин', 'Покупка продуктов', '2025-10-02 14:30:00'),
-(1, 'tx-vb-001-003', -2500.00, 'debit', 'АЗС', 'Заправка автомобиля', '2025-10-03 09:15:00'),
-(2, 'tx-vb-002-001', 95000.00, 'credit', 'ООО Компания', 'Зарплата', '2025-10-01 10:00:00'),
-(2, 'tx-vb-002-002', -12000.00, 'debit', 'Магазин электроники', 'Покупка ноутбука', '2025-10-05 16:00:00'),
-(3, 'tx-vb-003-001', 25000.00, 'credit', 'ПФР', 'Пенсия', '2025-10-01 08:00:00'),
-(4, 'tx-vb-004-001', 500000.00, 'credit', 'Клиент оплата', 'Поступление от продаж', '2025-09-30 12:00:00'),
-(5, 'tx-vb-005-001', 15000.00, 'credit', 'Родители', 'Стипендия + помощь', '2025-10-01 09:00:00');
+(1, 'tx-ab-001-001', 120000.00, 'credit', 'ООО Работодатель', 'Зарплата', '2025-10-01 10:00:00'),
+(1, 'tx-ab-001-002', -15000.00, 'debit', 'Ресторан', 'Ужин', '2025-10-03 20:00:00'),
+(2, 'tx-ab-002-001', 150000.00, 'credit', 'ООО Компания', 'Зарплата', '2025-10-01 10:00:00'),
+(2, 'tx-ab-002-002', -25000.00, 'debit', 'Туристическое агентство', 'Путевка', '2025-10-04 11:00:00'),
+(3, 'tx-ab-003-001', 200000.00, 'credit', 'Клиенты', 'Доход от бизнеса', '2025-09-30 18:00:00'),
+(4, 'tx-ab-004-001', 1500000.00, 'credit', 'Инвестор', 'Раунд инвестиций', '2025-09-15 14:00:00'),
+(5, 'tx-ab-005-001', 65000.00, 'credit', 'ООО Работодатель', 'Зарплата', '2025-10-01 10:00:00');
 
 -- Настройки банка
 INSERT INTO bank_settings (key, value) VALUES
-('bank_code', 'vbank'),
-('bank_name', 'Virtual Bank'),
-('public_address', 'http://localhost:8001'),
-('capital', '3500000.00');
+('bank_code', 'abank'),
+('bank_name', 'Awesome Bank'),
+('public_address', 'http://localhost:8002'),
+('capital', '3500000.00')
+ON CONFLICT (key) DO NOTHING;
 
 -- Капитал банка
 INSERT INTO bank_capital (bank_code, capital, initial_capital, total_deposits, total_loans) VALUES
-('vbank', 3500000.00, 3500000.00, 0, 0);
+('abank', 3500000.00, 3500000.00, 0, 0)
+ON CONFLICT (bank_code) DO NOTHING;
+
 
 
 -- Продукты банка
@@ -142,9 +144,24 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 INSERT INTO products (product_id, product_type, name, description, interest_rate, min_amount, term_months) VALUES
-('prod-vb-deposit-001', 'deposit', 'Накопительный депозит', 'Ставка 8.5% годовых', 8.5, 50000, 12),
-('prod-vb-card-001', 'credit_card', 'Кредитная карта Premium', 'Ставка 15.9%, кэшбэк 5%', 15.9, 0, NULL),
-('prod-vb-loan-001', 'loan', 'Потребительский кредит', 'Ставка 12.9% годовых', 12.9, 50000, 36);
+('prod-ab-deposit-001', 'deposit', 'Выгодный депозит', 'Ставка 9.0% годовых', 9.0, 100000, 12),
+('prod-ab-card-001', 'card', 'Кредитная карта Gold', 'Ставка 16.5%, кэшбэк 3%', 16.5, 0, NULL),
+('prod-ab-loan-001', 'loan', 'Кредит наличными', 'Ставка 13.5% годовых', 13.5, 100000, 24);
+
+
+-- Договоры с продуктами
+CREATE TABLE IF NOT EXISTS product_agreements (
+    id SERIAL PRIMARY KEY,
+    agreement_id VARCHAR(100) UNIQUE NOT NULL,
+    client_id INTEGER REFERENCES clients(id),
+    product_id INTEGER REFERENCES products(id),
+    account_id INTEGER REFERENCES accounts(id),
+    amount NUMERIC(15, 2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'active',
+    start_date TIMESTAMP DEFAULT NOW(),
+    end_date TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
 
 
 -- История ключевой ставки ЦБ
@@ -156,11 +173,10 @@ CREATE TABLE IF NOT EXISTS key_rate_history (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Начальная ключевая ставка
 INSERT INTO key_rate_history (rate, changed_by) VALUES (7.50, 'system');
 
--- Настройки системы
+-- Обновление настроек
 INSERT INTO bank_settings (key, value) VALUES 
 ('key_rate', '7.50'),
 ('auto_approve_consents', 'true')
-ON CONFLICT (key) DO NOTHING;
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

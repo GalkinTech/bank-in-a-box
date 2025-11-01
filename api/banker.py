@@ -9,8 +9,8 @@ from decimal import Decimal
 from datetime import datetime
 import uuid
 
-from ..database import get_db
-from ..models import Product, ConsentRequest, Client, Account, ProductAgreement
+from database import get_db
+from models import Product, ConsentRequest, Client, Account, ProductAgreement
 
 router = APIRouter(prefix="/banker", tags=["Banker"])
 

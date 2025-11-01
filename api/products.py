@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..database import get_db
-from ..models import Product
+from database import get_db
+from models import Product
 
 router = APIRouter(prefix="/products", tags=["Products"])
 

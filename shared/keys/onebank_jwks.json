@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "alg": "RS256",
+      "kid": "onebank-2025",
+      "n": "sB9M-4onvUQ6mjMZ15tIS-F0Tq_Ak-6K1kLFS8C5eUO5Lx8kPNauiLfLei2cxQgl3GRXf-ZFlYCEgydnIDGRbumWMOghmYzc0agOAOcSB0vgpsYxtExp-03aLEseZSR7FNhm884AVB0c8308sC_iyDZsxg6lAyVEsV2JzdQLPrpXwF-xRs7171fTdrKVcmSQdHVBl-PfoSflumuVABkf3tBzCZsUWMym-KHaozgzLCE1EBKm6TDxdQsySGOHZHAgTeGIS7cAKpR4xrQeZDMIAhghRKXAOJ7coeIKmX6TGpb3zs1g9y0bUL4-y1SbERJjY29JsEbmQ0hKj-inBP_zrw",
+      "e": "AQAB"
+    }
+  ]
+}

@@ -10,8 +10,8 @@ from pydantic import BaseModel
 from decimal import Decimal
 from datetime import datetime
 
-from ..database import get_db
-from ..models import BankCapital, InterbankTransfer, Payment, Account, BankSettings, KeyRateHistory
+from database import get_db
+from models import BankCapital, InterbankTransfer, Payment, Account, BankSettings, KeyRateHistory
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 

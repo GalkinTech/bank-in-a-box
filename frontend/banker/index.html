@@ -222,8 +222,9 @@
 
         // Get base URL from current location
         function getBaseUrl() {
-            const port = window.location.port;
-            return `http://localhost:${port}`;
+            // Используем текущий origin (протокол + хост + порт)
+            // Это работает для localhost:8000, https://onebank.ru, и т.д.
+            return window.location.origin;
         }
 
         // Handle login

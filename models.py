@@ -227,6 +227,125 @@ class ProductAgreement(Base):
     product = relationship("Product")
 
 
+class ProductApplication(Base):
+    """Заявка на продукт (заглушка для API заявок)
+    Хранит минимально необходимые поля, используемые эндпоинтами product_applications.
+    """
+    __tablename__ = "product_applications"
+    
+    id = Column(Integer, primary_key=True)
+    application_id = Column(String(100), unique=True, nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    requested_amount = Column(Numeric(15, 2), nullable=False)
+    requested_term_months = Column(Integer)
+    status = Column(String(50), default="pending")  # pending, under_review, approved, rejected, cancelled
+    decision = Column(String(50))  # approved / rejected
+    decision_reason = Column(Text)
+    approved_amount = Column(Numeric(15, 2))
+    approved_rate = Column(Numeric(7, 4))
+    application_data = Column(Text)
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+    reviewed_at = Column(DateTime)
+    decision_at = Column(DateTime)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CustomerLead(Base):
+    """Лид (потенциальный клиент) для персональных предложений"""
+    __tablename__ = "customer_leads"
+    
+    id = Column(Integer, primary_key=True)
+    customer_lead_id = Column(String(100), unique=True, nullable=False)
+    full_name = Column(String(255), nullable=False)
+    phone = Column(String(50))
+    email = Column(String(255))
+    interested_products = Column(ARRAY(String))
+    source = Column(String(100), default="api")
+    status = Column(String(50), default="pending")
+    estimated_income = Column(Numeric(15, 2))
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    contacted_at = Column(DateTime)
+    converted_to_client_id = Column(Integer)  # ID клиента после конверсии (если был)
+
+
+class ProductOffer(Base):
+    """Персональное предложение по продукту"""
+    __tablename__ = "product_offers"
+    
+    id = Column(Integer, primary_key=True)
+    offer_id = Column(String(100), unique=True, nullable=False)
+    customer_lead_id = Column(String(100))  # внешний id лида (строка)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    personalized_rate = Column(Numeric(7, 4))
+    personalized_amount = Column(Numeric(15, 2))
+    personalized_term_months = Column(Integer)
+    status = Column(String(50), default="pending")  # pending, accepted, expired, cancelled
+    valid_until = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sent_at = Column(DateTime)
+    viewed_at = Column(DateTime)
+    responded_at = Column(DateTime)
+
+
+class ProductOfferConsent(Base):
+    """Согласие на получение персональных предложений"""
+    __tablename__ = "product_offer_consents"
+    
+    id = Column(Integer, primary_key=True)
+    consent_id = Column(String(100), unique=True, nullable=False)
+    customer_lead_id = Column(String(100))
+    client_id = Column(Integer, ForeignKey("clients.id"))
+    permissions = Column(ARRAY(String))
+    status = Column(String(50), default="active")  # active, revoked, expired
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime)
+
+
+class VRPConsent(Base):
+    """VRP согласие (Variable Recurring Payments)"""
+    __tablename__ = "vrp_consents"
+    
+    id = Column(Integer, primary_key=True)
+    consent_id = Column(String(100), unique=True, nullable=False)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    status = Column(String(50), default="Authorised")
+    max_individual_amount = Column(Numeric(15, 2))
+    max_amount_period = Column(Numeric(15, 2))
+    period_type = Column(String(20))  # day, week, month, year
+    max_payments_count = Column(Integer)
+    valid_from = Column(DateTime)
+    valid_to = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    authorised_at = Column(DateTime)
+    revoked_at = Column(DateTime)
+
+
+class VRPPayment(Base):
+    """Платеж по VRP согласию"""
+    __tablename__ = "vrp_payments"
+    
+    id = Column(Integer, primary_key=True)
+    payment_id = Column(String(100), unique=True, nullable=False)
+    vrp_consent_id = Column(String(100), nullable=False)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=False)
+    amount = Column(Numeric(15, 2), nullable=False)
+    currency = Column(String(3), default="RUB")
+    destination_account = Column(String(255))
+    destination_bank = Column(String(100))
+    description = Column(Text)
+    status = Column(String(50), default="AcceptedSettlementInProcess")
+    is_recurring = Column(Boolean, default=True)
+    recurrence_frequency = Column(String(20))  # daily, weekly, monthly
+    next_payment_date = Column(DateTime)
+    creation_date_time = Column(DateTime, default=datetime.utcnow)
+    status_update_date_time = Column(DateTime, default=datetime.utcnow)
+    executed_at = Column(DateTime)
+
 class KeyRateHistory(Base):
     """История изменений ключевой ставки ЦБ"""
     __tablename__ = "key_rate_history"

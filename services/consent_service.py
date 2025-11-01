@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import uuid
 
-from ..models import Consent, ConsentRequest, Notification, Client, BankSettings
+from models import Consent, ConsentRequest, Notification, Client, BankSettings
 
 
 class ConsentService:

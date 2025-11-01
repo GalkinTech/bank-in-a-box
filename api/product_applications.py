@@ -12,9 +12,9 @@ from datetime import datetime
 import uuid
 import json
 
-from ..database import get_db
-from ..models import ProductApplication, Product, Client
-from ..services.auth_service import get_current_client
+from database import get_db
+from models import ProductApplication, Product, Client
+from services.auth_service import get_current_client
 
 router = APIRouter(
     prefix="/product-application", 

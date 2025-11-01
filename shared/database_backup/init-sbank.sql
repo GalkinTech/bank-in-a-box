@@ -116,11 +116,13 @@ INSERT INTO bank_settings (key, value) VALUES
 ('bank_code', 'sbank'),
 ('bank_name', 'Smart Bank'),
 ('public_address', 'http://localhost:8003'),
-('capital', '3000000.00');
+('capital', '3000000.00')
+ON CONFLICT (key) DO NOTHING;
 
 -- Капитал банка
 INSERT INTO bank_capital (bank_code, capital, initial_capital, total_deposits, total_loans) VALUES
-('sbank', 3000000.00, 3000000.00, 0, 0);
+('sbank', 3000000.00, 3000000.00, 0, 0)
+ON CONFLICT (bank_code) DO NOTHING;
 
 
 
