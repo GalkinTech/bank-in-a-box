@@ -2,13 +2,14 @@
 Auth API - Авторизация клиентов
 """
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Form
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from ..database import get_db
-from ..models import Client
-from ..services.auth_service import create_access_token, hash_password, verify_password, get_current_client
+from database import get_db
+from models import Client
+from services.auth_service import create_access_token, hash_password, verify_password, get_current_client
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -45,9 +46,11 @@ async def login(
     if not client:
         raise HTTPException(401, "Invalid credentials")
     
-    # В MVP: password = person_id (для упрощения тестирования)
+    # В MVP: password = username+1 или универсальный password+1 (для упрощения тестирования)
     # В production: проверять хешированный пароль
-    if request.password != request.username and request.password != "password":
+    expected_password_username = request.username + "+1"
+    universal_password = "password+1"
+    if request.password != expected_password_username and request.password != universal_password:
         raise HTTPException(401, "Invalid credentials")
     
     # Создать JWT токен
@@ -85,7 +88,7 @@ async def create_bank_token(bank_code: str, shared_secret: str = "hackapi-2025-b
     
     Использует JWT RS256 с приватным ключом банка
     """
-    from ..config import config
+    from config import config
     
     # В sandbox: простая проверка секрета
     if shared_secret != "hackapi-2025-bank-secret":
@@ -111,16 +114,20 @@ async def create_bank_token(bank_code: str, shared_secret: str = "hackapi-2025-b
 
 
 @router.post("/banker-login")
-async def banker_login(username: str = "admin", password: str = "admin"):
+async def banker_login(
+    username: str = Form(...),
+    password: str = Form(...),
+):
     """
     Авторизация банкира
     
     В sandbox: упрощенная авторизация
     """
-    if username != "admin" or password != "admin":
+    # Banker credentials: username 'admin', password 'admin+1'
+    if username != "admin" or password != "admin+1":
         raise HTTPException(401, "Invalid credentials")
     
-    from ..config import config
+    from config import config
     
     # Создать токен банкира
     banker_token = create_access_token(

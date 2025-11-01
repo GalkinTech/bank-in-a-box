@@ -269,8 +269,7 @@
         }
 
         function getBaseUrl() {
-            const port = window.location.port;
-            return `http://localhost:${port}`;
+            return window.location.origin;
         }
 
         function logout() {

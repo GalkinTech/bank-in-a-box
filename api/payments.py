@@ -12,10 +12,10 @@ from datetime import datetime
 from decimal import Decimal
 import uuid
 
-from ..database import get_db
-from ..models import Payment, Account
-from ..services.auth_service import get_current_client
-from ..services.payment_service import PaymentService
+from database import get_db
+from models import Payment, Account
+from services.auth_service import get_current_client
+from services.payment_service import PaymentService
 
 
 router = APIRouter(prefix="/payments", tags=["Payments"])

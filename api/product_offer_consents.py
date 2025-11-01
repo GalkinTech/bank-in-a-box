@@ -10,9 +10,9 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 import uuid
 
-from ..database import get_db
-from ..models import ProductOfferConsent, CustomerLead, Client
-from ..services.auth_service import get_current_client
+from database import get_db
+from models import ProductOfferConsent, CustomerLead, Client
+from services.auth_service import get_current_client
 
 router = APIRouter(
     prefix="/product-offer-consents",

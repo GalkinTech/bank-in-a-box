@@ -9,8 +9,8 @@ from datetime import datetime
 from typing import Optional, Tuple
 import uuid
 
-from ..models import Account, Payment, InterbankTransfer, BankCapital, Client
-from ..config import config
+from models import Account, Payment, InterbankTransfer, BankCapital, Client
+from config import config
 
 
 class PaymentService:

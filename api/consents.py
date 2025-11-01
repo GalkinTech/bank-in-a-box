@@ -10,10 +10,10 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 import uuid
 
-from ..database import get_db
-from ..models import Consent, ConsentRequest, Notification, Client
-from ..services.auth_service import get_current_client, get_current_bank, get_optional_client
-from ..services.consent_service import ConsentService
+from database import get_db
+from models import Consent, ConsentRequest, Notification, Client
+from services.auth_service import get_current_client, get_current_bank, get_optional_client
+from services.consent_service import ConsentService
 
 
 router = APIRouter(prefix="/account-consents", tags=["Account-Consents"])

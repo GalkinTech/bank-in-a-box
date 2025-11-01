@@ -10,9 +10,9 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 import uuid
 
-from ..database import get_db
-from ..models import ProductAgreement, Product, Client, Account, BankCapital, Transaction
-from ..services.auth_service import get_current_client
+from database import get_db
+from models import ProductAgreement, Product, Client, Account, BankCapital, Transaction
+from services.auth_service import get_current_client
 
 router = APIRouter(prefix="/product-agreements", tags=["Product Agreements"])
 
@@ -214,7 +214,7 @@ async def create_agreement(
         
     elif product.product_type == "loan":
         # Кредит: проверить капитал банка
-        from ..config import config
+        from config import config
         capital_result = await db.execute(
             select(BankCapital).where(BankCapital.bank_code == config.BANK_CODE)
         )
@@ -515,7 +515,7 @@ async def close_agreement(
         db.add(credit_tx)
         
         # Увеличить капитал банка (вернуть выданный кредит)
-        from ..config import config
+        from config import config
         capital_result = await db.execute(
             select(BankCapital).where(BankCapital.bank_code == config.BANK_CODE)
         )

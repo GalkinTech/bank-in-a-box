@@ -8,10 +8,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from .config import config
-from .database import engine
-from .models import Base
-from .api import (
+from config import config
+from database import engine
+from models import Base
+from api import (
     accounts, auth, consents, payments, admin, products, well_known, 
     banker, product_agreements,
     product_applications, customer_leads, product_offers, product_offer_consents,
@@ -48,11 +48,10 @@ app = FastAPI(
 # CORS - разрешить запросы между всеми банками
 # Для мультибанковых приложений нужно разрешить cross-origin запросы
 allowed_origins = [
-    "http://localhost:8001",  # VBank
-    "http://localhost:8002",  # ABank
-    "http://localhost:8003",  # SBank
-    "http://localhost",       # Прокси
-    "http://localhost:3000",  # Directory
+    "https://onebank.ru",
+    "https://hackapi.tech",
+    "http://localhost",
+    "http://localhost:*"
 ]
 
 app.add_middleware(

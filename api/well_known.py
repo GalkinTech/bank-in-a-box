@@ -20,10 +20,11 @@ async def get_jwks():
     Используется другими банками для проверки JWT подписей
     при межбанковских запросах.
     """
-    from ..config import config
+    from config import config
     
     # Путь к JWKS файлу банка
-    jwks_path = Path(__file__).parent.parent.parent.parent / "shared" / "keys" / f"{config.BANK_CODE}_jwks.json"
+    # Из /app/api/well_known.py -> /app/api -> /app -> /app/shared/keys/
+    jwks_path = Path(__file__).parent.parent / "shared" / "keys" / f"{config.BANK_CODE}_jwks.json"
     
     # Базовый JWKS если файла нет
     default_jwks = {
