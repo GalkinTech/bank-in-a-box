@@ -7,6 +7,13 @@ export default defineConfig({
   base: './',
   server: {
     port: 5174,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8100',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   build: {
     outDir: '../../../../frontend/client/widgets/refinance',

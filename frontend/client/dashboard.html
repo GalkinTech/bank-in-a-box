@@ -1231,6 +1231,87 @@
         
         const apiBase = window.location.origin;
 
+        const refinanceFrame = document.getElementById('refinanceFrame');
+
+        const resolveRefinanceOrigin = () => {
+            if (!refinanceFrame?.src) {
+                return window.location.origin;
+            }
+
+            try {
+                const frameUrl = new URL(refinanceFrame.src, window.location.href);
+                return frameUrl.origin;
+            } catch (error) {
+                console.warn('[refinance-widget] Не удалось определить origin виджета', error);
+                return '*';
+            }
+        };
+
+        let refinanceWidgetOrigin = resolveRefinanceOrigin();
+
+        const isMessageFromRefinanceWidget = (event) => {
+            if (!refinanceFrame?.contentWindow) {
+                return false;
+            }
+            return event.source === refinanceFrame.contentWindow;
+        };
+
+        const sendAuthTokenToRefinanceWidget = () => {
+            if (!token || !refinanceFrame?.contentWindow) {
+                return;
+            }
+
+            const targetOrigin = refinanceWidgetOrigin || '*';
+
+            refinanceFrame.contentWindow.postMessage(
+                {
+                    type: 'AUTH_TOKEN_RESPONSE',
+                    payload: {
+                        token,
+                        bankCode,
+                        clientId,
+                    },
+                },
+                targetOrigin
+            );
+        };
+
+        if (refinanceFrame) {
+            refinanceFrame.addEventListener('load', () => {
+                refinanceWidgetOrigin = resolveRefinanceOrigin();
+                sendAuthTokenToRefinanceWidget();
+            });
+
+            // Попытаться отправить токен сразу, если iframe уже готов
+            sendAuthTokenToRefinanceWidget();
+        }
+
+        window.addEventListener('message', (event) => {
+            if (!event?.data || typeof event.data !== 'object') {
+                return;
+            }
+
+            if (!isMessageFromRefinanceWidget(event)) {
+                return;
+            }
+
+            const { type, payload } = event.data;
+
+            if (type === 'CREDIT_ANALYTICS_TOKEN_REQUEST') {
+                sendAuthTokenToRefinanceWidget();
+                return;
+            }
+
+            if (type === 'REFINANCE_APPLICATION_SUBMITTED') {
+                const statusText = payload?.status ? `Статус: ${payload.status}` : 'Запрос отправлен.';
+                showToast(statusText, 'success', '🔁 Заявка на рефинансирование');
+
+                // Обновляем данные, чтобы отразить новые предложения или состояние договоров
+                loadProductAgreements();
+                loadAccounts();
+            }
+        });
+
         // Update UI with user info
         document.getElementById('bankLogo').textContent = bankNames[bankCode];
         document.getElementById('userName').textContent = clientId;

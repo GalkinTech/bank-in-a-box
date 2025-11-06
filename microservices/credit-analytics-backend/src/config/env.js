@@ -21,4 +21,5 @@ export const config = {
   port: Number(process.env.PORT ?? 8100),
   bankApiBaseUrl: process.env.BANK_API_BASE_URL ?? 'http://localhost:8080',
   bankApiTimeoutMs: Number(process.env.BANK_API_TIMEOUT_MS ?? 10000),
+  useMockData: process.env.USE_MOCK_DATA === 'true',
 };
