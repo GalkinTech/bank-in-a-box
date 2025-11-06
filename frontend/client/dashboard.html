@@ -311,7 +311,6 @@
             width: 100%;
             border: none;
             height: var(--refinance-iframe-height);
-            min-height: var(--refinance-iframe-height);
             overflow: hidden;
         }
 
@@ -1220,7 +1219,55 @@
         
         const apiBase = window.location.origin;
 
+        const FIXED_REFINANCE_HEIGHT = 1300;
+        const MOBILE_BREAKPOINT = 768;
+        const DEFAULT_DESKTOP_HEIGHT = 520;
         const refinanceFrame = document.getElementById('refinanceFrame');
+        let lastRefinanceHeight = 0;
+
+        const isMobileViewport = () => window.innerWidth <= MOBILE_BREAKPOINT;
+
+        const applyRefinanceFrameHeight = (rawHeight) => {
+            if (!refinanceFrame) {
+                return;
+            }
+
+            const mobile = isMobileViewport();
+            const section = document.getElementById('section-refinance');
+            const requestedHeight = Math.max(parseInt(rawHeight, 10) || lastRefinanceHeight || DEFAULT_DESKTOP_HEIGHT, 320);
+            let finalHeight = requestedHeight;
+
+            if (!mobile && section) {
+                const sectionStyles = getComputedStyle(section);
+                const paddingTop = parseFloat(sectionStyles.paddingTop) || 0;
+                const paddingBottom = parseFloat(sectionStyles.paddingBottom) || 0;
+                const rect = section.getBoundingClientRect();
+                const availableViewportHeight = window.innerHeight - rect.top - paddingBottom - 8;
+
+                if (!Number.isNaN(availableViewportHeight) && availableViewportHeight > 0) {
+                    const usableHeight = availableViewportHeight - paddingTop;
+                    if (usableHeight > 0) {
+                        finalHeight = Math.min(requestedHeight, Math.max(usableHeight, 320));
+                    }
+                }
+            }
+
+            if (mobile) {
+                finalHeight = FIXED_REFINANCE_HEIGHT;
+                refinanceFrame.style.height = `${FIXED_REFINANCE_HEIGHT}px`;
+                refinanceFrame.style.minHeight = `${FIXED_REFINANCE_HEIGHT}px`;
+                refinanceFrame.style.maxHeight = `${FIXED_REFINANCE_HEIGHT}px`;
+            } else {
+                refinanceFrame.style.height = `${finalHeight}px`;
+                refinanceFrame.style.minHeight = '';
+                refinanceFrame.style.maxHeight = '';
+            }
+
+            const wrapper = refinanceFrame.closest('.iframe-wrapper');
+            if (wrapper) {
+                wrapper.style.setProperty('--refinance-iframe-height', `${finalHeight}px`);
+            }
+        };
 
         const resolveRefinanceOrigin = () => {
             if (!refinanceFrame?.src) {
@@ -1246,19 +1293,16 @@
         };
 
         const updateRefinanceFrameHeight = (height) => {
-            if (!refinanceFrame) {
-                return;
-            }
-
             const clampedHeight = Math.max(parseInt(height, 10) || 0, 320);
-            refinanceFrame.style.height = `${clampedHeight}px`;
-            refinanceFrame.style.minHeight = `${clampedHeight}px`;
-
-            const wrapper = refinanceFrame.closest('.iframe-wrapper');
-            if (wrapper) {
-                wrapper.style.setProperty('--refinance-iframe-height', `${clampedHeight}px`);
-            }
+            lastRefinanceHeight = clampedHeight;
+            applyRefinanceFrameHeight(clampedHeight);
         };
+
+        window.addEventListener('resize', () => {
+            applyRefinanceFrameHeight();
+        });
+
+        applyRefinanceFrameHeight();
 
         const sendAuthTokenToRefinanceWidget = () => {
             if (!token || !refinanceFrame?.contentWindow) {
