@@ -1,16 +1,11 @@
 <template>
-  <div class="refinance-widget">
-    <header class="widget-header">
-      <div class="header-text">
-        <h1>Рефинансирование кредитов</h1>
-        <p>Анализируйте активные кредиты и выбирайте лучшие предложения с одним кликом.</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn btn-secondary" type="button" @click="refreshAll" :disabled="isLoading">
-          Обновить данные
-        </button>
-      </div>
-    </header>
+  <div ref="rootEl" class="refinance-widget">
+    <HeaderSection
+      title="Рефинансирование кредитов"
+      subtitle="Анализируйте активные кредиты и выбирайте лучшие предложения с одним кликом."
+      :is-disabled="isLoading"
+      @refresh="refreshAll"
+    />
 
     <section v-if="isAuthRequired" class="state state-auth">
       <h2>Требуется авторизация</h2>
@@ -19,206 +14,60 @@
     </section>
 
     <section v-else class="content">
-      <div class="summary-grid">
-        <div class="summary-card primary">
-          <div class="summary-label">Текущая задолженность</div>
-          <div class="summary-value">{{ formatCurrency(summary.totalOutstanding) }}</div>
-          <div class="summary-caption">По активным кредитам</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Средняя ставка</div>
-          <div class="summary-value">{{ formatPercent(summary.averageRate) }}</div>
-          <div class="summary-caption">Текущие условия по кредитам</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Потенциальная экономия</div>
-          <div class="summary-value savings">{{ formatCurrency(summary.totalPotentialSavings) }}</div>
-          <div class="summary-caption">При переходе на предложение</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Предложений доступно</div>
-          <div class="summary-value">{{ summary.totalOffers }}</div>
-          <div class="summary-caption">Для активных договоров</div>
-        </div>
-      </div>
+      <InfoSection
+        :cards="infoCards"
+        :content-state="infoContentState"
+      />
 
-      <div v-if="isLoading" class="state state-loading">
-        <div class="loader"></div>
-        <p>Загружаем данные кредитов и предложения...</p>
-      </div>
-
-      <div v-else-if="hasError" class="state state-error">
-        <h2>Не удалось получить данные</h2>
-        <ul>
-          <li v-for="(message, index) in errorMessages" :key="index">{{ message }}</li>
-        </ul>
-        <button class="btn btn-primary" type="button" @click="refreshAll">Попробовать снова</button>
-      </div>
-
-      <div v-else-if="!loansWithOffers.length" class="state state-empty">
-        <div class="empty-icon">🔍</div>
-        <h2>Кредиты не найдены</h2>
-        <p>Чтобы получить предложения по рефинансированию, оформите кредит или свяжитесь с банком.</p>
-      </div>
-
-      <div v-else class="loans-grid">
-        <article
-          v-for="loan in loansWithOffers"
-          :key="loan.agreement_id"
-          class="loan-card"
-          :class="{ selected: loan.agreement_id === state.selectedLoanId }"
-        >
-          <header class="loan-card__header">
-            <div>
-              <h3>{{ loan.product_name || 'Кредитный договор' }}</h3>
-              <p class="muted">Договор № {{ loan.agreement_id }}</p>
-            </div>
-            <div class="loan-card__status">{{ loan.status === 'active' ? 'Активен' : loan.status }}</div>
-          </header>
-
-          <div class="loan-card__body">
-            <div class="loan-details">
-              <div class="detail">
-                <span class="label">Остаток долга</span>
-                <span class="value">{{ formatCurrency(loan.outstandingBalance) }}</span>
-                <span v-if="loan.balanceError" class="hint error">{{ loan.balanceError }}</span>
-              </div>
-              <div class="detail">
-                <span class="label">Текущая ставка</span>
-                <span class="value">{{ formatPercent(loan.currentRate) }}</span>
-              </div>
-              <div class="detail">
-                <span class="label">Платёж</span>
-                <span class="value">{{ formatCurrency(loan.currentMonthlyPayment) }}</span>
-              </div>
-              <div class="detail">
-                <span class="label">Срок остаток</span>
-                <span class="value">{{ formatTerm(loan.remainingTermMonths) }}</span>
-              </div>
-            </div>
-
-            <div v-if="loan.offer" class="offer">
-              <div class="offer-header">
-                <span class="offer-badge">Новая ставка</span>
-                <span class="offer-rate">{{ formatPercent(loan.offer.suggested_rate) }}</span>
-              </div>
-              <div class="offer-body">
-                <div class="offer-item">
-                  <span class="label">Ежемесячный платёж</span>
-                  <span class="value">{{ formatCurrency(loan.offer.monthly_payment) }}</span>
-                </div>
-                <div class="offer-item">
-                  <span class="label">Экономия</span>
-                  <span class="value savings">{{ formatCurrency(loan.offerSavings) }}</span>
-                </div>
-              </div>
-              <div class="offer-actions">
-                <button class="btn btn-primary" type="button" @click="openApplicationModal(loan.agreement_id)">
-                  Подать заявку
-                </button>
-              </div>
-            </div>
-            <div v-else class="offer offer--empty">
-              <p>Для данного кредита пока нет актуальных предложений. Попробуйте обновить данные позже.</p>
-            </div>
-          </div>
-        </article>
-      </div>
+      <CreditsSection
+        :state="creditsState"
+        :loans="loansWithOffers"
+        :error-messages="errorMessages"
+        :loading-message="creditsLoadingMessage"
+        :empty-title="creditsEmptyState.title"
+        :empty-description="creditsEmptyState.description"
+        :selected-loan-id="state.selectedLoanId"
+        :is-mobile="isMobile"
+        :current-slide="currentSlide"
+        :is-prev-disabled="currentSlide === 0"
+        :is-next-disabled="currentSlide >= loansWithOffers.length - 1"
+        :loans-track-ref="setLoansTrack"
+        :format-currency="formatCurrency"
+        :format-percent="formatPercent"
+        :format-term="formatTerm"
+        @retry="refreshAll"
+        @select-loan="selectLoan"
+        @next-loan="nextLoan"
+        @prev-loan="prevLoan"
+        @go-to-loan="goToLoan"
+        @open-application="openApplicationModal"
+      />
     </section>
 
-    <div v-if="state.applicationModalOpen" class="modal-backdrop" @click.self="closeApplicationModal">
-      <div class="modal">
-        <header class="modal-header">
-          <div>
-            <h2>Заявка на рефинансирование</h2>
-            <p v-if="selectedLoan" class="muted">Договор № {{ selectedLoan.agreement_id }}</p>
-          </div>
-          <button class="modal-close" type="button" aria-label="Закрыть" @click="closeApplicationModal">×</button>
-        </header>
-
-        <div v-if="state.submissionSuccess" class="modal-success">
-          <div class="success-icon">✅</div>
-          <h3>Заявка отправлена</h3>
-          <p>Мы уведомим вас, как только банк обработает запрос.</p>
-          <button class="btn btn-secondary" type="button" @click="closeApplicationModal">Готово</button>
-        </div>
-
-        <form v-else class="modal-form" @submit.prevent="submitApplication">
-          <div class="modal-grid" v-if="selectedLoan">
-            <div>
-              <h4>Текущие условия</h4>
-              <ul class="modal-list">
-                <li>
-                  <span class="label">Ставка</span>
-                  <span class="value">{{ formatPercent(selectedLoan.currentRate) }}</span>
-                </li>
-                <li>
-                  <span class="label">Ежемесячный платёж</span>
-                  <span class="value">{{ formatCurrency(selectedLoan.currentMonthlyPayment) }}</span>
-                </li>
-              </ul>
-            </div>
-            <div v-if="selectedLoan.offer">
-              <h4>Новое предложение</h4>
-              <ul class="modal-list">
-                <li>
-                  <span class="label">Ставка</span>
-                  <span class="value">{{ formatPercent(selectedLoan.offer.suggested_rate) }}</span>
-                </li>
-                <li>
-                  <span class="label">Платёж</span>
-                  <span class="value">{{ formatCurrency(selectedLoan.offer.monthly_payment) }}</span>
-                </li>
-                <li>
-                  <span class="label">Экономия</span>
-                  <span class="value savings">{{ formatCurrency(selectedLoan.offerSavings) }}</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="desired-term" class="label">Желаемый срок (мес.)</label>
-            <input
-              id="desired-term"
-              v-model="state.applicationForm.desiredTermMonths"
-              type="number"
-              min="6"
-              step="1"
-              placeholder="Например, 24"
-            />
-            <span class="hint">Необязательно: если нужно изменить срок кредита.</span>
-          </div>
-
-          <div class="form-group">
-            <label for="comment" class="label">Комментарий</label>
-            <textarea
-              id="comment"
-              v-model="state.applicationForm.comment"
-              rows="3"
-              placeholder="Уточните пожелания или дополнительную информацию"
-            ></textarea>
-          </div>
-
-          <div v-if="state.submissionError" class="alert alert-error">
-            {{ state.submissionError }}
-          </div>
-
-          <div class="modal-actions">
-            <button class="btn btn-secondary" type="button" @click="closeApplicationModal">Отмена</button>
-            <button class="btn btn-primary" type="submit" :disabled="state.isSubmitting">
-              <span v-if="state.isSubmitting" class="spinner"></span>
-              Отправить заявку
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <ApplicationModal
+      :is-open="state.applicationModalOpen"
+      :selected-loan="selectedLoan"
+      :format-currency="formatCurrency"
+      :format-percent="formatPercent"
+      :desired-term-months="state.applicationForm.desiredTermMonths"
+      :comment="state.applicationForm.comment"
+      :submission-success="state.submissionSuccess"
+      :submission-error="state.submissionError"
+      :is-submitting="state.isSubmitting"
+      @close="closeApplicationModal"
+      @submit="submitApplication"
+      @update:desired-term-months="state.applicationForm.desiredTermMonths = $event"
+      @update:comment="state.applicationForm.comment = $event"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import HeaderSection from './components/HeaderSection.vue';
+import InfoSection from './components/InfoSection.vue';
+import CreditsSection from './components/CreditsSection.vue';
+import ApplicationModal from './components/ApplicationModal.vue';
 
 const state = reactive({
   loans: [],
@@ -242,12 +91,128 @@ const state = reactive({
 const authToken = ref(null);
 const tokenRequestTimestamp = ref(0);
 const devAutoAuth = import.meta.env.DEV;
+const rootEl = ref(null);
+const lastSentHeight = ref(0);
+let resizeObserver = null;
+const loansTrack = ref(null);
+const setLoansTrack = (element) => {
+  loansTrack.value = element;
+};
+const currentSlide = ref(0);
+const isMobile = ref(false);
+let trackScrollHandler = null;
 
 const ensureBearer = (token) => {
   if (!token) {
     return '';
   }
   return token.startsWith('Bearer') ? token : `Bearer ${token}`;
+};
+
+const clampIndex = (index) => {
+  const maxIndex = Math.max(loansWithOffers.value.length - 1, 0);
+  return Math.min(Math.max(index, 0), maxIndex);
+};
+
+const scrollToSlide = (index) => {
+  const track = loansTrack.value;
+  if (!track) {
+    return;
+  }
+
+  const targetIndex = clampIndex(index);
+  const width = track.clientWidth;
+  if (!width) {
+    return;
+  }
+
+  const targetScroll = targetIndex * width;
+  track.scrollTo({ left: targetScroll, behavior: 'smooth' });
+  requestAnimationFrame(() => scheduleHeightUpdate());
+};
+
+const goToLoan = (index) => {
+  const targetIndex = clampIndex(index);
+  currentSlide.value = targetIndex;
+  const loan = loansWithOffers.value[targetIndex];
+  if (loan) {
+    state.selectedLoanId = loan.agreement_id;
+  }
+  if (isMobile.value) {
+    scrollToSlide(targetIndex);
+  }
+};
+
+const nextLoan = () => {
+  goToLoan(currentSlide.value + 1);
+};
+
+const prevLoan = () => {
+  goToLoan(currentSlide.value - 1);
+};
+
+const selectLoan = (agreementId, index) => {
+  state.selectedLoanId = agreementId;
+  if (isMobile.value) {
+    goToLoan(index);
+  }
+};
+
+const handleTrackScroll = () => {
+  if (!isMobile.value) {
+    return;
+  }
+  const track = loansTrack.value;
+  if (!track) {
+    return;
+  }
+  const width = track.clientWidth || 1;
+  const slide = clampIndex(Math.round(track.scrollLeft / width));
+  if (slide !== currentSlide.value) {
+    currentSlide.value = slide;
+    const loan = loansWithOffers.value[slide];
+    if (loan && loan.agreement_id !== state.selectedLoanId) {
+      state.selectedLoanId = loan.agreement_id;
+    }
+  }
+  scheduleHeightUpdate();
+};
+
+const detachTrackScroll = () => {
+  if (trackScrollHandler && loansTrack.value) {
+    loansTrack.value.removeEventListener('scroll', trackScrollHandler);
+  }
+  trackScrollHandler = null;
+};
+
+const attachTrackScroll = () => {
+  detachTrackScroll();
+  const track = loansTrack.value;
+  if (!track) {
+    return;
+  }
+  trackScrollHandler = () => handleTrackScroll();
+  track.addEventListener('scroll', trackScrollHandler, { passive: true });
+};
+
+const handleViewportChange = () => {
+  const mobile = window.matchMedia('(max-width: 767px)').matches;
+  if (mobile !== isMobile.value) {
+    isMobile.value = mobile;
+  }
+  if (isMobile.value) {
+    nextTick(() => {
+      attachTrackScroll();
+      scrollToSlide(currentSlide.value);
+    });
+  } else {
+    detachTrackScroll();
+    currentSlide.value = clampIndex(currentSlide.value);
+    if (loansTrack.value) {
+      loansTrack.value.scrollTo({ left: 0 });
+    }
+  }
+  scheduleHeightUpdate();
 };
 
 const describeError = (error, fallback) => {
@@ -264,6 +229,46 @@ const describeError = (error, fallback) => {
     return `Ошибка ${error.status}`;
   }
   return fallback;
+};
+
+const sendWidgetHeight = (height) => {
+  if (!window.parent || window.parent === window) {
+    return;
+  }
+
+  const nextHeight = Math.max(Math.ceil(height || 0), 0);
+  if (!nextHeight || Math.abs(nextHeight - lastSentHeight.value) < 1) {
+    return;
+  }
+
+  lastSentHeight.value = nextHeight;
+  window.parent.postMessage(
+    {
+      type: 'CREDIT_ANALYTICS_HEIGHT',
+      payload: { height: nextHeight },
+    },
+    '*'
+  );
+};
+
+const scheduleHeightUpdate = () => {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      const element = rootEl.value;
+      const measured =
+        element?.offsetHeight ||
+        document.body.scrollHeight ||
+        document.documentElement.scrollHeight;
+      sendWidgetHeight(measured);
+    });
+  } else {
+    const element = rootEl.value;
+    const measured =
+      element?.offsetHeight ||
+      document.body.scrollHeight ||
+      document.documentElement.scrollHeight;
+    sendWidgetHeight(measured);
+  }
 };
 
 const fetchJson = async (path, options = {}) => {
@@ -361,15 +366,47 @@ const loadOffers = async () => {
   }
 };
 
+const infoContentState = computed(() => {
+  if (isLoading.value) {
+    return 'loading';
+  }
+  if (hasError.value || !loansWithOffers.value.length) {
+    return 'hidden';
+  }
+  return 'ready';
+});
+
+const creditsState = computed(() => {
+  if (isLoading.value) {
+    return 'loading';
+  }
+  if (hasError.value) {
+    return 'error';
+  }
+  if (!loansWithOffers.value.length) {
+    return 'empty';
+  }
+  return 'ready';
+});
+
+const creditsLoadingMessage = computed(() => 'Загружаем данные кредитов и предложения...');
+
+const creditsEmptyState = computed(() => ({
+  title: 'Кредиты не найдены',
+  description: 'Чтобы получить предложения по рефинансированию, оформите кредит или свяжитесь с банком.',
+}));
+
 const refreshAll = async () => {
   if (!authToken.value) {
     state.initialLoadCompleted = true;
+    scheduleHeightUpdate();
     return;
   }
 
   state.initialLoadCompleted = false;
   await Promise.all([loadLoans(), loadOffers()]);
   state.initialLoadCompleted = true;
+  scheduleHeightUpdate();
 };
 
 const offersByLoanId = computed(() => {
@@ -514,6 +551,31 @@ const declineWord = (value, words) => {
   return words[2];
 };
 
+const infoCards = computed(() => [
+  {
+    label: 'Текущая задолженность',
+    value: formatCurrency(summary.value.totalOutstanding),
+    caption: 'По активным кредитам',
+    variant: 'primary',
+  },
+  {
+    label: 'Средняя ставка',
+    value: formatPercent(summary.value.averageRate),
+    caption: 'Текущие условия по кредитам',
+  },
+  {
+    label: 'Потенциальная экономия',
+    value: formatCurrency(summary.value.totalPotentialSavings),
+    caption: 'При переходе на предложение',
+    valueClass: 'savings',
+  },
+  {
+    label: 'Предложений доступно',
+    value: summary.value.totalOffers,
+    caption: 'Для активных договоров',
+  },
+]);
+
 const openApplicationModal = (agreementId) => {
   state.selectedLoanId = agreementId;
   state.applicationModalOpen = true;
@@ -583,6 +645,7 @@ const submitApplication = async () => {
     }
   } finally {
     state.isSubmitting = false;
+    scheduleHeightUpdate();
   }
 };
 
@@ -618,6 +681,21 @@ const handleMessage = (event) => {
 onMounted(() => {
   window.addEventListener('message', handleMessage);
 
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      scheduleHeightUpdate();
+    });
+    const element = rootEl.value;
+    if (element) {
+      resizeObserver.observe(element);
+    }
+  }
+
+  handleViewportChange();
+  window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('orientationchange', handleViewportChange);
+  scheduleHeightUpdate();
+
   const storedToken = sessionStorage.getItem('creditAnalyticsToken');
   if (storedToken) {
     authToken.value = storedToken;
@@ -632,31 +710,126 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('message', handleMessage);
+  window.removeEventListener('resize', handleViewportChange);
+  window.removeEventListener('orientationchange', handleViewportChange);
+  resizeObserver?.disconnect();
+  detachTrackScroll();
 });
 
 watch(loansWithOffers, (items) => {
   if (!items.length) {
     state.selectedLoanId = null;
+    currentSlide.value = 0;
+    scheduleHeightUpdate();
     return;
   }
 
-  if (!items.some((loan) => loan.agreement_id === state.selectedLoanId)) {
+  const selectedIndex = items.findIndex((loan) => loan.agreement_id === state.selectedLoanId);
+  if (selectedIndex === -1) {
     state.selectedLoanId = items[0].agreement_id;
+    currentSlide.value = 0;
+  } else {
+    currentSlide.value = clampIndex(selectedIndex);
   }
+
+  if (isMobile.value) {
+    nextTick(() => {
+      attachTrackScroll();
+      scrollToSlide(currentSlide.value);
+    });
+  }
+
+  scheduleHeightUpdate();
 });
 
 watch(authToken, (token, previous) => {
   if (token && token !== previous) {
     refreshAll();
+    scheduleHeightUpdate();
   }
 });
+
+watch(
+  () => state.selectedLoanId,
+  (agreementId) => {
+    if (!agreementId) {
+      currentSlide.value = 0;
+      return;
+    }
+
+    const index = loansWithOffers.value.findIndex(
+      (loan) => loan.agreement_id === agreementId
+    );
+
+    if (index >= 0 && index !== currentSlide.value) {
+      currentSlide.value = clampIndex(index);
+      if (isMobile.value) {
+        nextTick(() => scrollToSlide(currentSlide.value));
+      }
+    }
+  }
+);
+
+watch(currentSlide, () => {
+  if (isMobile.value) {
+    nextTick(() => scheduleHeightUpdate());
+  } else {
+    scheduleHeightUpdate();
+  }
+});
+
+watch(isMobile, (mobile) => {
+  if (mobile) {
+    nextTick(() => {
+      attachTrackScroll();
+      scrollToSlide(currentSlide.value);
+      scheduleHeightUpdate();
+    });
+  } else {
+    detachTrackScroll();
+    if (loansTrack.value) {
+      loansTrack.value.scrollTo({ left: 0 });
+    }
+    scheduleHeightUpdate();
+  }
+});
+
+watch(
+  () => loansTrack.value,
+  (track) => {
+    if (track && isMobile.value) {
+      attachTrackScroll();
+      nextTick(() => scrollToSlide(currentSlide.value));
+    } else if (!track) {
+      detachTrackScroll();
+    }
+  }
+);
+
+watch(isLoading, () => {
+  scheduleHeightUpdate();
+});
+
+watch(
+  () => state.applicationModalOpen,
+  () => {
+    scheduleHeightUpdate();
+  }
+);
+
+watch(
+  () => state.submissionSuccess,
+  () => {
+    scheduleHeightUpdate();
+  }
+);
 </script>
 
-<style scoped>
+<style>
 .refinance-widget {
-  min-height: 100vh;
+  min-height: 100%;
   padding: 32px clamp(20px, 6vw, 48px);
-  background: linear-gradient(160deg, #f5f7fa 0%, #ffffff 60%, #f0f4ff 100%);
+  /* background: linear-gradient(160deg, #f5f7fa 0%, #ffffff 60%, #f0f4ff 100%); */
   color: #1f2d3d;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   display: flex;
@@ -739,10 +912,68 @@ watch(authToken, (token, previous) => {
   gap: 24px;
 }
 
+.loans-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.loans-section--carousel {
+  gap: 16px;
+}
+
+.loans-carousel-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.carousel-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(92, 108, 255, 0.12);
+  color: #3a4dff;
+  font-size: 26px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 6px 12px rgba(74, 91, 255, 0.15);
+}
+
+.carousel-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.carousel-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+
 .loans-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 20px;
+}
+
+.loans-grid--carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  gap: 16px;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.loans-grid--carousel::-webkit-scrollbar {
+  display: none;
 }
 
 .loan-card {
@@ -755,6 +986,8 @@ watch(authToken, (token, previous) => {
   padding: 22px;
   gap: 18px;
   transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  scroll-snap-align: center;
+  flex: 0 0 calc(100% - 32px);
 }
 
 .loan-card:hover,
@@ -1127,6 +1360,20 @@ watch(authToken, (token, previous) => {
   font-size: 3rem;
 }
 
+.carousel-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(74, 91, 255, 0.25);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.carousel-dot.active {
+  background: #4a5bff;
+}
+
 @media (max-width: 1024px) {
   .loans-grid {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -1138,6 +1385,20 @@ watch(authToken, (token, previous) => {
 }
 
 @media (max-width: 768px) {
+  .loans-grid {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .loans-grid--carousel {
+    flex-direction: row;
+  }
+
+  .loan-card {
+    flex: 0 0 calc(100% - 40px);
+    margin-right: 0;
+  }
+
   .widget-header {
     flex-direction: column;
     align-items: flex-start;

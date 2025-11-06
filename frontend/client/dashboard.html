@@ -301,21 +301,18 @@
             color: var(--text-primary);
         }
 
-        .iframe-wrapper {
-            width: 100%;
-            border: 1px solid var(--border-color);
-            border-radius: var(--border-radius-md);
-            overflow: hidden;
-            background: var(--bg-card);
-            box-shadow: var(--shadow-sm);
+        #section-refinance {
+            --refinance-iframe-height: 520px;
+            padding: 0;
         }
 
-        .iframe-wrapper iframe {
+        #section-refinance #refinanceFrame {
             display: block;
             width: 100%;
-            min-height: 520px;
             border: none;
-            background: var(--bg-card);
+            height: var(--refinance-iframe-height);
+            min-height: var(--refinance-iframe-height);
+            overflow: hidden;
         }
 
         /* Buttons */
@@ -948,18 +945,10 @@
 
         <!-- Refinance Section -->
         <section class="section" id="section-refinance">
-            <div class="section-header">
-                <h2 class="section-title">🔁 Рефинансирование кредитов</h2>
-            </div>
-            <p style="color: var(--text-secondary); margin-bottom: var(--spacing-lg); max-width: 720px;">
-                Управляйте своими кредитами и отслеживайте предложения по рефинансированию в режиме реального времени.
-            </p>
-            <div class="iframe-wrapper">
-          <iframe id="refinanceFrame"
-                        src="http://localhost:5174"
-                        title="Микросервис рефинансирования"
-                        loading="lazy"></iframe>
-        </div>
+            <iframe id="refinanceFrame"
+                    src="http://localhost:5174"
+                    title="Микросервис рефинансирования"
+                    loading="lazy"></iframe>
         </section>
 
         <!-- Transfers Section -->
@@ -1256,6 +1245,21 @@
             return event.source === refinanceFrame.contentWindow;
         };
 
+        const updateRefinanceFrameHeight = (height) => {
+            if (!refinanceFrame) {
+                return;
+            }
+
+            const clampedHeight = Math.max(parseInt(height, 10) || 0, 320);
+            refinanceFrame.style.height = `${clampedHeight}px`;
+            refinanceFrame.style.minHeight = `${clampedHeight}px`;
+
+            const wrapper = refinanceFrame.closest('.iframe-wrapper');
+            if (wrapper) {
+                wrapper.style.setProperty('--refinance-iframe-height', `${clampedHeight}px`);
+            }
+        };
+
         const sendAuthTokenToRefinanceWidget = () => {
             if (!token || !refinanceFrame?.contentWindow) {
                 return;
@@ -1299,6 +1303,13 @@
 
             if (type === 'CREDIT_ANALYTICS_TOKEN_REQUEST') {
                 sendAuthTokenToRefinanceWidget();
+                return;
+            }
+
+            if (type === 'CREDIT_ANALYTICS_HEIGHT') {
+                if (payload?.height) {
+                    updateRefinanceFrameHeight(payload.height);
+                }
                 return;
             }
 
