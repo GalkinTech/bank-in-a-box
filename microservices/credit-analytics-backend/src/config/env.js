@@ -32,18 +32,21 @@ const buildExternalBankConfig = () => {
       displayName: 'Virtual Bank',
       baseUrl: process.env.VBANK_API_BASE,
       consentId: process.env.VBANK_PRODUCT_AGREEMENT_CONSENT_ID,
+      accountConsentId: process.env.VBANK_ACCOUNT_CONSENT_ID,
     },
     {
       code: 'abank',
       displayName: 'Awesome Bank',
       baseUrl: process.env.ABANK_API_BASE,
       consentId: process.env.ABANK_PRODUCT_AGREEMENT_CONSENT_ID,
+      accountConsentId: process.env.ABANK_ACCOUNT_CONSENT_ID,
     },
     {
       code: 'sbank',
       displayName: 'Smart Bank',
       baseUrl: process.env.SBANK_API_BASE,
       consentId: process.env.SBANK_PRODUCT_AGREEMENT_CONSENT_ID,
+      accountConsentId: process.env.SBANK_ACCOUNT_CONSENT_ID,
     },
   ];
 
@@ -53,6 +56,7 @@ const buildExternalBankConfig = () => {
       ...bank,
       baseUrl: bank.baseUrl.trim(),
       consentId: bank.consentId.trim(),
+      accountConsentId: bank.accountConsentId?.trim() ?? null,
     }));
 };
 

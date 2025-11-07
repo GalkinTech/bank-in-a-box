@@ -152,6 +152,33 @@ VALUES
   ('loan-fast', 'loan', 'Быстрый займ', 18.0, 10000, 500000, 24);
 ```
 
+#### Через Banker API (curl)
+
+1. Получи токен банкира:
+   ```bash
+   curl -X POST http://localhost:8080/auth/banker-login \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "username=admin&password=admin"
+   ```
+   Сохрани значение `access_token` из ответа.
+
+2. Создай продукт, например «Айтишная ипотека» с льготной ставкой:
+   ```bash
+   curl -X POST \
+     "http://localhost:8080/banker/products?product_type=LOAN&name=%D0%90%D0%B9%D1%82%D0%B8%D1%88%D0%BD%D0%B0%D1%8F%20%D0%B8%D0%BF%D0%BE%D1%82%D0%B5%D0%BA%D0%B0&interest_rate=5.9&min_amount=1000000" \
+     -H "Authorization: Bearer <BANKER_TOKEN>"
+   ```
+
+3. (Опционально) отредактируй лимиты и статус:
+   ```bash
+   curl -X PUT "http://localhost:8080/banker/products/prod-XXXXXXXXXXXX" \
+     -H "Authorization: Bearer <BANKER_TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d '{"max_amount": 30000000, "term_months": 360, "is_active": true}'
+   ```
+
+4. Открой `http://localhost:8080/banker/products.html` и убедись, что продукт появился в списке.
+
 ### 3. Настрой ставки
 
 Через Banker UI:
