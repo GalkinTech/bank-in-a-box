@@ -12,6 +12,19 @@ class BankConfig(BaseSettings):
     BANK_CODE: str = "vbank"
     BANK_NAME: str = "Virtual Bank"
     BANK_DESCRIPTION: str = "Виртуальный банк - эмуляция от организаторов"
+
+    # === TEAM CREDENTIALS (для межбанковских запросов) ===
+    TEAM_CLIENT_ID: str
+    TEAM_CLIENT_SECRET: str
+    TEAM_CLIENT_ACCESS_TOKEN: str | None = None
+    CLIENT_USERNAME: str | None = None
+    CLIENT_PASSWORD: str | None = None
+
+    # === ВНЕШНИЕ БАНКИ (Open Banking) ===
+    VBANK_API_BASE: str | None = None
+    ABANK_API_BASE: str | None = None
+    SBANK_API_BASE: str | None = None
+    OPEN_BANKING_TIMEOUT: float = 10.0
     
     # === DATABASE ===
     DATABASE_URL: str = "postgresql://hackapi_user:hackapi_pass@localhost:5432/vbank_db"

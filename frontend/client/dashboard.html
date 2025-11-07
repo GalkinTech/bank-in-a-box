@@ -2219,6 +2219,30 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
         }
 
         // Multibank
+        function getCandidateClientIds(fallbackIds = []) {
+            const uniqueIds = new Set();
+            if (clientId) {
+                uniqueIds.add(clientId);
+            }
+            const preferredFromStorage = localStorage.getItem('multibank_preferred_client_id');
+            if (preferredFromStorage) {
+                uniqueIds.add(preferredFromStorage);
+            }
+            fallbackIds.forEach(id => {
+                if (id) {
+                    uniqueIds.add(id);
+                }
+            });
+            return Array.from(uniqueIds);
+        }
+
+        function rememberWorkingClientId(value) {
+            if (!value) {
+                return;
+            }
+            localStorage.setItem('multibank_preferred_client_id', value);
+        }
+
         async function loadBankAccounts(bankCode, url, bankName) {
             const container = document.getElementById('multibankAccounts');
             
@@ -2245,11 +2269,11 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                 console.log(`✅ ${bankName}: получен банковский токен`);
                 
                 // ШАГ 2: Попробовать получить consent для разных клиентов
-                const testUsers = ['team200-1', 'team200-2', 'team200-3'];
+                const candidateClientIds = getCandidateClientIds(['team018-1', 'team200-1', 'team200-2', 'team200-3']);
                 let consentId = null;
                 let workingClientId = null;
                 
-                for (const clientId of testUsers) {
+                for (const candidateId of candidateClientIds) {
                     try {
                         const consentResponse = await fetch(`${apiBase}/multibank/request-consent`, {
                             method: 'POST',
@@ -2257,7 +2281,7 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                             body: JSON.stringify({
                                 bank_url: url,
                                 bank_token: bankToken,
-                                client_id: clientId
+                                client_id: candidateId
                             })
                         });
                         
@@ -2267,8 +2291,9 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                                        consentData.consent_id || 
                                        consentData.ConsentId ||
                                        consentData.id;
-                            workingClientId = clientId;
-                            console.log(`✅ ${bankName}: получен consent для ${clientId}`, consentData);
+                            workingClientId = candidateId;
+                            rememberWorkingClientId(candidateId);
+                            console.log(`✅ ${bankName}: получен consent для ${candidateId}`, consentData);
                             break;
                         }
                     } catch (e) {
@@ -2319,13 +2344,14 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                 }
                 
                 const accountsData = await accountsResponse.json();
-                console.log(`✅ ${bankName}: получено ${accountsData.data.account.length} счетов`);
+                const accountsList = accountsData?.data?.account || [];
+                console.log(`✅ ${bankName}: получено ${accountsList.length} счетов`);
                 
                 // Формируем HTML с счетами
                 let bankHtml = `<div style="background: var(--bg-hover); padding: var(--spacing-md); border-radius: var(--border-radius-sm); margin-bottom: var(--spacing-md);">
                     <h3 style="color: var(--text-primary); margin-bottom: var(--spacing-md);">🏦 ${bankName}</h3>`;
                 
-                for (const account of accountsData.data.account) {
+                for (const account of accountsList) {
                     // Получаем баланс
                     const balanceResponse = await fetch(
                         `${apiBase}/multibank/balances-with-consent?account_id=${encodeURIComponent(account.accountId)}&bank_url=${encodeURIComponent(url)}&bank_token=${encodeURIComponent(bankToken)}&consent_id=${encodeURIComponent(consentId)}`,
@@ -2334,7 +2360,11 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                     
                     if (balanceResponse.ok) {
                         const balanceData = await balanceResponse.json();
-                        const balance = parseFloat(balanceData.data.balance[0].amount.amount);
+                        const balances = balanceData?.data?.balance || [];
+                        if (!balances.length) {
+                            continue;
+                        }
+                        const balance = parseFloat(balances[0].amount.amount);
                         
                         bankHtml += `
                             <div style="padding: var(--spacing-md); background: var(--bg-card); border-radius: var(--border-radius-sm); margin-bottom: var(--spacing-sm); display: flex; justify-content: space-between;">
@@ -2373,25 +2403,9 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
 
             // Конфигурация банков с правильными логинами
             const banks = [
-                { 
-                    code: 'vbank', 
-                    name: 'Virtual Bank', 
-                    url: 'https://vbank.open.bankingapi.ru',
-                    // Используем только team200-X клиентов, так как они точно существуют на всех банках
-                    testUsers: ['team200-1', 'team200-2', 'team200-3']
-                },
-                { 
-                    code: 'abank', 
-                    name: 'Awesome Bank', 
-                    url: 'https://abank.open.bankingapi.ru',
-                    testUsers: ['team200-1', 'team200-2', 'team200-3']
-                },
-                { 
-                    code: 'sbank', 
-                    name: 'Smart Bank', 
-                    url: 'https://sbank.open.bankingapi.ru',
-                    testUsers: ['team200-1', 'team200-2', 'team200-3']
-                }
+                { code: 'vbank', name: 'Virtual Bank', url: 'https://vbank.open.bankingapi.ru' },
+                { code: 'abank', name: 'Awesome Bank', url: 'https://abank.open.bankingapi.ru' },
+                { code: 'sbank', name: 'Smart Bank', url: 'https://sbank.open.bankingapi.ru' }
             ];
 
             let allAccounts = [];
@@ -2422,8 +2436,9 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                     // Пробуем разные варианты клиентов для запроса consent
                     let consentId = null;
                     let workingClientId = null;
+                    const candidateClientIds = getCandidateClientIds(['team018-1', 'team200-1', 'team200-2', 'team200-3']);
                     
-                    for (const clientId of bank.testUsers) {
+                    for (const candidateId of candidateClientIds) {
                         try {
                             // ШАГ 2: Запросить согласие (consent) на доступ к счетам
                             const consentResponse = await fetch(`${apiBase}/multibank/request-consent`, {
@@ -2432,7 +2447,7 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                                 body: JSON.stringify({
                                     bank_url: bank.url,
                                     bank_token: bankToken,
-                                    client_id: clientId
+                                    client_id: candidateId
                                 })
                             });
                             
@@ -2443,8 +2458,9 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                                            consentData.consent_id || 
                                            consentData.ConsentId ||
                                            consentData.id;
-                                workingClientId = clientId;
-                                console.log(`✅ ${bank.name}: получен consent для ${clientId}`, consentData);
+                                workingClientId = candidateId;
+                                rememberWorkingClientId(candidateId);
+                                console.log(`✅ ${bank.name}: получен consent для ${candidateId}`, consentData);
                                 break;
                             }
                         } catch (e) {
@@ -2490,10 +2506,10 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                     }
 
                     const accountsData = await accountsResponse.json();
-                    console.log(`✅ ${bank.name}: получены счета`);
+                    const accountsList = accountsData?.data?.account || [];
+                    console.log(`✅ ${bank.name}: получены счета (${accountsList.length})`);
 
-
-                    for (const account of accountsData.data.account) {
+                    for (const account of accountsList) {
                         // Получаем баланс с использованием consent
                         const balanceResponse = await fetch(`${apiBase}/multibank/balances-with-consent?account_id=${encodeURIComponent(account.accountId)}&bank_url=${encodeURIComponent(bank.url)}&bank_token=${encodeURIComponent(bankToken)}&consent_id=${encodeURIComponent(consentId)}`, {
                             method: 'POST'
@@ -2501,7 +2517,11 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
 
                         if (balanceResponse.ok) {
                             const balanceData = await balanceResponse.json();
-                            const balance = parseFloat(balanceData.data.balance[0].amount.amount);
+                            const balances = balanceData?.data?.balance || [];
+                            if (!balances.length) {
+                                continue;
+                            }
+                            const balance = parseFloat(balances[0].amount.amount);
                             totalBalance += balance;
 
                             allAccounts.push({
