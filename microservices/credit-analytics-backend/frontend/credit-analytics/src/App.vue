@@ -14,6 +14,18 @@
     </section>
 
     <section v-else class="content">
+      <div
+        v-if="externalIssues"
+        class="status-alert"
+        role="alert"
+      >
+        <span class="status-alert__icon">⚠️</span>
+        <div class="status-alert__content">
+          <strong>Ограниченная доступность внешних банков.</strong>
+          <p>{{ externalIssues }}</p>
+        </div>
+      </div>
+
       <InfoSection
         :cards="infoCards"
         :content-state="infoContentState"
@@ -74,9 +86,12 @@ const state = reactive({
   offers: [],
   isLoadingLoans: false,
   isLoadingOffers: false,
+  isLoadingStatus: false,
   initialLoadCompleted: false,
   errorLoans: null,
   errorOffers: null,
+  errorStatus: null,
+  banksStatus: null,
   selectedLoanId: null,
   applicationModalOpen: false,
   applicationForm: {
@@ -440,6 +455,21 @@ const loadOffers = async () => {
   }
 };
 
+const loadExternalStatus = async () => {
+  state.isLoadingStatus = true;
+  state.errorStatus = null;
+
+  try {
+    const response = await fetchJson('/api/refinance/status');
+    state.banksStatus = response?.data ?? null;
+  } catch (error) {
+    state.errorStatus = describeError(error, 'Не удалось проверить статус внешних банков');
+    state.banksStatus = null;
+  } finally {
+    state.isLoadingStatus = false;
+  }
+};
+
 const infoContentState = computed(() => {
   if (isLoading.value) {
     return 'loading';
@@ -478,7 +508,7 @@ const refreshAll = async () => {
   }
 
   state.initialLoadCompleted = false;
-  await Promise.all([loadLoans(), loadOffers()]);
+  await Promise.all([loadLoans(), loadOffers(), loadExternalStatus()]);
   state.initialLoadCompleted = true;
   scheduleHeightUpdate();
 };
@@ -578,6 +608,32 @@ const summary = computed(() => {
 
 const errorMessages = computed(() => {
   return [state.errorLoans, state.errorOffers].filter(Boolean);
+});
+
+const banksHealth = computed(() => {
+  const raw = state.banksStatus?.banks ?? [];
+  return raw;
+});
+
+const externalBanksDown = computed(() => {
+  return banksHealth.value.some((item) => item?.status !== 'up');
+});
+
+const externalIssues = computed(() => {
+  if (state.errorStatus) {
+    return state.errorStatus;
+  }
+  if (!banksHealth.value.length) {
+    return null;
+  }
+  const problematic = banksHealth.value.filter((item) => item?.status !== 'up');
+  if (!problematic.length) {
+    return null;
+  }
+  const description = problematic
+    .map((item) => `${item?.name || item?.code || 'банк'} (${item.healthUrl || item.baseUrl})`)
+    .join(', ');
+  return `Внешние банки недоступны: ${description}. Предложения по рефинансированию могут быть ограничены.`;
 });
 
 const isLoading = computed(() => {
@@ -920,6 +976,15 @@ watch(
     scheduleHeightUpdate();
   }
 );
+
+watch(
+  () => state.banksStatus,
+  () => {
+    scheduleHeightUpdate();
+  }
+);
+
+/* конец setup */
 </script>
 
 <style>
@@ -1098,6 +1163,33 @@ watch(
 
 .btn:not(:disabled):hover {
   transform: translateY(-2px);
+}
+
+.status-alert {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 159, 67, 0.35);
+  background: rgba(255, 188, 87, 0.12);
+  color: #7a3300;
+}
+
+.status-alert__icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.status-alert__content strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.status-alert__content p {
+  margin: 0;
+  color: inherit;
+  font-size: 14px;
 }
 
 .state {

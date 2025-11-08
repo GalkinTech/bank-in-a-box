@@ -144,11 +144,10 @@ async def request_consent(request: ConsentRequest):
     """
     # Запрос на создание consent (формат согласно API банков)
     consent_data = {
-        "client_id": request.client_id,
         "permissions": [
-            "ReadAccountsBasic", 
-            "ReadAccountsDetail", 
-            "ReadBalances", 
+            "ReadAccountsBasic",
+            "ReadAccountsDetail",
+            "ReadBalances",
             "ReadTransactionsDetail"
         ],
         "expiration_date": "2025-12-31T23:59:59.000Z"
@@ -156,6 +155,9 @@ async def request_consent(request: ConsentRequest):
 
     return await _post_with_fallback(
         f"{request.bank_url}/account-consents/request",
+        params={
+            "client_id": request.client_id,
+        },
         headers={
             "Authorization": f"Bearer {request.bank_token}",
             "Content-Type": "application/json",

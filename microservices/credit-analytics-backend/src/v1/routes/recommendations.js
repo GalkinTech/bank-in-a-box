@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import axios from 'axios';
 import { bankApiClient, handleAxiosError } from '../../lib/bankApiClient.js';
 import { config } from '../../config/env.js';
 import { getMockLoanDetails } from '../../lib/mockData.js';
@@ -203,6 +204,49 @@ const mockBankProducts = [
     termMonths: 120,
   },
 ];
+
+const normalizeBankHealth = (bank, result) => {
+  const base = bank.baseUrl ?? '';
+  const healthUrl = `${base.replace(/\/$/, '')}/health`;
+
+  if (result.ok) {
+    return {
+      code: bank.code,
+      name: bank.displayName ?? bank.code,
+      baseUrl: base,
+      status: 'up',
+      healthUrl,
+      httpStatus: result.status,
+      message: null,
+    };
+  }
+
+  return {
+    code: bank.code,
+    name: bank.displayName ?? bank.code,
+    baseUrl: base,
+    status: 'down',
+    healthUrl,
+    httpStatus: result.status ?? null,
+    message: result.message ?? 'Недоступен',
+  };
+};
+
+router.get('/banks/health', async (req, res) => {
+  try {
+    const banks = await fetchExternalBanks();
+    const healthChecks = await Promise.all(banks.map(async (bank) => {
+      const response = await fetch(`${bank.baseUrl}/health`);
+      return normalizeBankHealth(bank, response);
+    }));
+
+    res.json(healthChecks);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[refinance] failed to fetch banks health', error);
+    res.status(500).json({ error: 'Failed to fetch banks health' });
+  }
+});
 
 router.get('/suggestions', async (req, res) => {
   try {
@@ -479,6 +523,56 @@ router.post('/applications', async (req, res) => {
 
     const formatted = handleAxiosError(error);
     res.status(formatted.status).json({ error: formatted.message, details: formatted.data });
+  }
+});
+
+router.get('/status', async (req, res) => {
+  try {
+    ensureAuthToken(req);
+
+    const banks = await Promise.all(
+      config.externalBanks.map(async (bank) => {
+        const healthUrl = `${bank.baseUrl.replace(/\/$/, '')}/health`;
+
+        try {
+          const response = await axios.get(healthUrl, {
+            timeout: config.externalBankTimeoutMs,
+            validateStatus: () => true,
+          });
+
+          const ok = response.status >= 200 && response.status < 300;
+          return normalizeBankHealth(bank, {
+            ok,
+            status: response.status,
+            message: ok ? null : response.statusText,
+          });
+        } catch (error) {
+          const status = error?.response?.status;
+          const message = error?.response?.statusText || error?.message || 'Unknown error';
+          return normalizeBankHealth(bank, {
+            ok: false,
+            status,
+            message,
+          });
+        }
+      })
+    );
+
+    res.json({
+      data: {
+        banks,
+        last_checked: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    if (error.status) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+
+    const formatted = handleAxiosError(error);
+    const status = Number.isInteger(formatted.status) ? formatted.status : 500;
+    res.status(status).json({ error: formatted.message, details: formatted.data });
   }
 });
 
