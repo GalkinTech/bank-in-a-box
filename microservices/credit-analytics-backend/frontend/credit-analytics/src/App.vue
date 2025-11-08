@@ -21,7 +21,7 @@
 
       <CreditsSection
         :state="creditsState"
-        :loans="loansWithOffers"
+        :loans="externalLoans"
         :error-messages="errorMessages"
         :loading-message="creditsLoadingMessage"
         :empty-title="creditsEmptyState.title"
@@ -30,7 +30,7 @@
         :is-mobile="isMobile"
         :current-slide="currentSlide"
         :is-prev-disabled="currentSlide === 0"
-        :is-next-disabled="currentSlide >= loansWithOffers.length - 1"
+        :is-next-disabled="currentSlide >= externalLoans.length - 1"
         :loans-track-ref="setLoansTrack"
         :format-currency="formatCurrency"
         :format-percent="formatPercent"
@@ -184,7 +184,7 @@ const applyAuthToken = (token, { persist = true } = {}) => {
 };
 
 const clampIndex = (index) => {
-  const maxIndex = Math.max(loansWithOffers.value.length - 1, 0);
+  const maxIndex = Math.max(externalLoans.value.length - 1, 0);
   return Math.min(Math.max(index, 0), maxIndex);
 };
 
@@ -208,7 +208,7 @@ const scrollToSlide = (index) => {
 const goToLoan = (index) => {
   const targetIndex = clampIndex(index);
   currentSlide.value = targetIndex;
-  const loan = loansWithOffers.value[targetIndex];
+  const loan = externalLoans.value[targetIndex];
   if (loan) {
     state.selectedLoanId = loan.agreement_id;
   }
@@ -244,7 +244,7 @@ const handleTrackScroll = () => {
   const slide = clampIndex(Math.round(track.scrollLeft / width));
   if (slide !== currentSlide.value) {
     currentSlide.value = slide;
-    const loan = loansWithOffers.value[slide];
+    const loan = externalLoans.value[slide];
     if (loan && loan.agreement_id !== state.selectedLoanId) {
       state.selectedLoanId = loan.agreement_id;
     }
@@ -444,7 +444,7 @@ const infoContentState = computed(() => {
   if (isLoading.value) {
     return 'loading';
   }
-  if (hasError.value || !loansWithOffers.value.length) {
+  if (hasError.value || !externalLoans.value.length) {
     return 'hidden';
   }
   return 'ready';
@@ -457,7 +457,7 @@ const creditsState = computed(() => {
   if (hasError.value) {
     return 'error';
   }
-  if (!loansWithOffers.value.length) {
+  if (!externalLoans.value.length) {
     return 'empty';
   }
   return 'ready';
@@ -514,12 +514,29 @@ const loansWithOffers = computed(() => {
   });
 });
 
+const isExternalLoan = (loan) => {
+  if (!loan) {
+    return false;
+  }
+  if (loan.source) {
+    return loan.source === 'external';
+  }
+  if (loan.origin_bank) {
+    return loan.origin_bank !== 'self';
+  }
+  return false;
+};
+
+const externalLoans = computed(() => {
+  return loansWithOffers.value.filter((loan) => isExternalLoan(loan));
+});
+
 const selectedLoan = computed(() => {
-  return loansWithOffers.value.find((loan) => loan.agreement_id === state.selectedLoanId) || null;
+  return externalLoans.value.find((loan) => loan.agreement_id === state.selectedLoanId) || null;
 });
 
 const summary = computed(() => {
-  if (!loansWithOffers.value.length) {
+  if (!externalLoans.value.length) {
     return {
       totalOutstanding: 0,
       averageRate: 0,
@@ -528,7 +545,7 @@ const summary = computed(() => {
     };
   }
 
-  const accumulator = loansWithOffers.value.reduce(
+  const accumulator = externalLoans.value.reduce(
     (acc, loan) => {
       const outstanding = loan.outstandingBalance ?? 0;
       const rate = loan.currentRate ?? 0;
@@ -796,7 +813,7 @@ onUnmounted(() => {
   detachTrackScroll();
 });
 
-watch(loansWithOffers, (items) => {
+watch(externalLoans, (items) => {
   if (!items.length) {
     state.selectedLoanId = null;
     currentSlide.value = 0;
@@ -837,7 +854,7 @@ watch(
       return;
     }
 
-    const index = loansWithOffers.value.findIndex(
+    const index = externalLoans.value.findIndex(
       (loan) => loan.agreement_id === agreementId
     );
 
