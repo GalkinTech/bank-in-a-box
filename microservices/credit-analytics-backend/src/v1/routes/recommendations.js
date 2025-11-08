@@ -2,7 +2,7 @@ import { Router } from 'express';
 import axios from 'axios';
 import { bankApiClient, handleAxiosError } from '../../lib/bankApiClient.js';
 import { config } from '../../config/env.js';
-import { getMockLoanDetails } from '../../lib/mockData.js';
+import { getMockLoanDetails, getMockBankProducts, getMockBankStatus } from '../../lib/mockData.js';
 import { fetchExternalLoans } from '../../lib/externalLoansService.js';
 
 const router = Router();
@@ -184,26 +184,13 @@ const enrichLoansWithOffers = (loans, products) =>
     refinance_offer: isExternalLoan(loan) ? selectBestProductOffer(loan, products) : null,
   }));
 
-const mockBankProducts = [
-  {
-    productId: 'prod-mock-it-mortgage',
-    productName: 'Айтишная ипотека',
-    productType: 'loan',
-    interestRate: 5.9,
-    minAmount: 500000,
-    maxAmount: 30000000,
-    termMonths: 360,
-  },
-  {
-    productId: 'prod-mock-fast-loan',
-    productName: 'Экспресс кредит 11.5%',
-    productType: 'loan',
-    interestRate: 11.5,
-    minAmount: 200000,
-    maxAmount: 5000000,
-    termMonths: 120,
-  },
-];
+const fetchExternalBanks = async () => {
+  if (!Array.isArray(config.externalBanks)) {
+    return [];
+  }
+
+  return config.externalBanks;
+};
 
 const normalizeBankHealth = (bank, result) => {
   const base = bank.baseUrl ?? '';
@@ -234,11 +221,18 @@ const normalizeBankHealth = (bank, result) => {
 
 router.get('/banks/health', async (req, res) => {
   try {
+    if (config.useMockData) {
+      res.json(getMockBankStatus());
+      return;
+    }
+
     const banks = await fetchExternalBanks();
-    const healthChecks = await Promise.all(banks.map(async (bank) => {
-      const response = await fetch(`${bank.baseUrl}/health`);
-      return normalizeBankHealth(bank, response);
-    }));
+    const healthChecks = await Promise.all(
+      banks.map(async (bank) => {
+        const response = await fetch(`${bank.baseUrl}/health`);
+        return normalizeBankHealth(bank, response);
+      })
+    );
 
     res.json(healthChecks);
   } catch (error) {
@@ -252,14 +246,15 @@ router.get('/suggestions', async (req, res) => {
   try {
     if (config.useMockData) {
       const mockLoans = getMockLoanDetails();
-      const enrichedMockLoans = enrichLoansWithOffers(mockLoans, mockBankProducts);
+      const mockProducts = getMockBankProducts();
+      const enrichedMockLoans = enrichLoansWithOffers(mockLoans, mockProducts);
 
       res.json({
         data: enrichedMockLoans,
         meta: {
           total: enrichedMockLoans.length,
           source: 'mock',
-          bank_products_considered: mockBankProducts.length,
+          bank_products_considered: mockProducts.length,
         },
       });
       return;
@@ -529,6 +524,17 @@ router.post('/applications', async (req, res) => {
 router.get('/status', async (req, res) => {
   try {
     ensureAuthToken(req);
+
+    if (config.useMockData) {
+      res.json({
+        data: {
+          banks: getMockBankStatus(),
+          last_checked: new Date().toISOString(),
+          source: 'mock',
+        },
+      });
+      return;
+    }
 
     const banks = await Promise.all(
       config.externalBanks.map(async (bank) => {

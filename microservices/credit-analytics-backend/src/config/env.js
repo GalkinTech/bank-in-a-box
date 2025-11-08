@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const envPath = path.join(__dirname, '../../.env');
-dotenv.config({ path: envPath, override: false });
+dotenv.config({ path: envPath, override: true });
 
 const requiredEnv = ['BANK_API_BASE_URL'];
 
@@ -33,6 +33,7 @@ const buildExternalBankConfig = () => {
       baseUrl: process.env.VBANK_API_BASE,
       consentId: process.env.VBANK_PRODUCT_AGREEMENT_CONSENT_ID,
       accountConsentId: process.env.VBANK_ACCOUNT_CONSENT_ID,
+      token: process.env.VBANK_CLIENT_TOKEN,
     },
     {
       code: 'abank',
@@ -40,6 +41,7 @@ const buildExternalBankConfig = () => {
       baseUrl: process.env.ABANK_API_BASE,
       consentId: process.env.ABANK_PRODUCT_AGREEMENT_CONSENT_ID,
       accountConsentId: process.env.ABANK_ACCOUNT_CONSENT_ID,
+      token: process.env.ABANK_CLIENT_TOKEN,
     },
     {
       code: 'sbank',
@@ -47,6 +49,7 @@ const buildExternalBankConfig = () => {
       baseUrl: process.env.SBANK_API_BASE,
       consentId: process.env.SBANK_PRODUCT_AGREEMENT_CONSENT_ID,
       accountConsentId: process.env.SBANK_ACCOUNT_CONSENT_ID,
+      token: process.env.SBANK_CLIENT_TOKEN,
     },
   ];
 

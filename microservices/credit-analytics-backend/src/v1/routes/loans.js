@@ -27,14 +27,28 @@ router.get('/active', async (req, res, next) => {
     const authHeader = ensureAuthToken(req);
     const client = bankApiClient(authHeader);
 
+    const agreementsPromise = client.get('/product-agreements').catch((error) => {
+      // eslint-disable-next-line no-console
+      console.warn('[loans] Failed to fetch internal product agreements', handleAxiosError(error));
+      return { data: { data: [] } };
+    });
+
+    const accountsPromise = client.get('/accounts').catch((error) => {
+      // eslint-disable-next-line no-console
+      console.warn('[loans] Failed to fetch internal accounts', handleAxiosError(error));
+      return { data: { data: { account: [] } } };
+    });
+
+    const externalLoansPromise = fetchExternalLoans().catch((error) => {
+      // eslint-disable-next-line no-console
+      console.warn('[loans] Failed to fetch external loans', error);
+      return [];
+    });
+
     const [agreementsResponse, accountsResponse, externalLoans] = await Promise.all([
-      client.get('/product-agreements'),
-      client.get('/accounts'),
-      fetchExternalLoans().catch((error) => {
-        // eslint-disable-next-line no-console
-        console.warn('[loans] Failed to fetch external loans', error);
-        return [];
-      }),
+      agreementsPromise,
+      accountsPromise,
+      externalLoansPromise,
     ]);
 
     const agreements = agreementsResponse.data?.data ?? [];
