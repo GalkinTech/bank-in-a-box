@@ -2871,13 +2871,8 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
             allTransactions = [];
             const filterSelect = document.getElementById('filterAccount');
             filterSelect.innerHTML = '<option value="">Все счета</option>';
-
-            // Ограничиваем до первых 10 счетов для предотвращения 429 ошибок
-            const accountsToLoad = accountsData.slice(0, 10);
             
-            for (let i = 0; i < accountsToLoad.length; i++) {
-                const account = accountsToLoad[i];
-                
+            for (const account of accountsData) {
                 try {
                     const transactions = await loadTransactions(account.accountId);
                     
@@ -2892,11 +2887,6 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
 
                     // Add to filter
                     filterSelect.innerHTML += `<option value="${account.accountId}">${account.accountSubType} (${account.account[0].identification.substring(0, 10)}...)</option>`;
-                    
-                    // Небольшая задержка между запросами для предотвращения 429
-                    if (i < accountsToLoad.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                    }
                 } catch (error) {
                     console.error(`Ошибка загрузки транзакций для счета ${account.accountId}:`, error);
                 }
