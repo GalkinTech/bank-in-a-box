@@ -2864,6 +2864,8 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
         // === Transactions History ===
         let allTransactions = [];
         let filteredTransactions = [];
+        let currentPage = 1;
+        const transactionsPerPage = 20;
 
         async function loadAllTransactions() {
             allTransactions = [];
@@ -2891,6 +2893,8 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
         }
 
         function filterTransactions() {
+            currentPage = 1; // Reset to first page when filtering
+            
             const accountFilter = document.getElementById('filterAccount').value;
             const typeFilter = document.getElementById('filterType').value;
             const periodFilter = document.getElementById('filterPeriod').value;
@@ -2934,6 +2938,11 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
 
             // Sort by date (newest first)
             const sorted = [...filteredTransactions].sort((a, b) => new Date(b.bookingDateTime) - new Date(a.bookingDateTime));
+            
+            const totalPages = Math.ceil(sorted.length / transactionsPerPage);
+            const startIndex = (currentPage - 1) * transactionsPerPage;
+            const endIndex = startIndex + transactionsPerPage;
+            const paginatedTransactions = sorted.slice(startIndex, endIndex);
 
             const tableHTML = `
                 <table style="width: 100%; border-collapse: collapse;">
@@ -2946,7 +2955,7 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                         </tr>
                     </thead>
                     <tbody>
-                        ${sorted.slice(0, 20).map(tx => `
+                        ${paginatedTransactions.map(tx => `
                             <tr onclick="showTransactionDetails(${JSON.stringify(tx).replace(/"/g, '&quot;')})" style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--hover-color, rgba(100,100,100,0.05))'" onmouseout="this.style.backgroundColor=''">
                                 <td style="padding: var(--spacing-md); color: var(--text-secondary); font-size: 13px;">
                                     ${new Date(tx.bookingDateTime).toLocaleDateString('ru-RU')}<br>
@@ -2967,14 +2976,46 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
                         `).join('')}
                     </tbody>
                 </table>
-                ${sorted.length > 20 ? `
-                    <div style="text-align: center; margin-top: var(--spacing-md); color: var(--text-muted); font-size: 13px;">
-                        Показано 20 из ${sorted.length} операций
-        </div>
+                ${totalPages > 1 ? `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--spacing-lg); padding: var(--spacing-md); background: var(--bg-hover); border-radius: 8px; border: 1px solid var(--border-color);">
+                        <button 
+                            onclick="changePage(${currentPage - 1})" 
+                            ${currentPage === 1 ? 'disabled' : ''} 
+                            style="padding: 8px 16px; background: ${currentPage === 1 ? 'var(--bg-hover)' : 'var(--primary-color)'}; color: ${currentPage === 1 ? 'var(--text-muted)' : 'white'}; border: 1px solid var(--border-color); border-radius: 6px; cursor: ${currentPage === 1 ? 'not-allowed' : 'pointer'}; font-size: 14px; font-weight: 500; transition: all 0.2s;"
+                            ${currentPage === 1 ? '' : `onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'"`}
+                        >
+                            ← Предыдущая
+                        </button>
+                        
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="color: var(--text-secondary); font-size: 14px;">
+                                Страница <strong style="color: var(--text-primary); font-size: 16px;">${currentPage}</strong> из <strong style="color: var(--text-primary);">${totalPages}</strong>
+                            </span>
+                            <span style="color: var(--text-muted); font-size: 13px;">
+                                (${startIndex + 1}-${Math.min(endIndex, sorted.length)} из ${sorted.length})
+                            </span>
+                        </div>
+                        
+                        <button 
+                            onclick="changePage(${currentPage + 1})" 
+                            ${currentPage === totalPages ? 'disabled' : ''} 
+                            style="padding: 8px 16px; background: ${currentPage === totalPages ? 'var(--bg-hover)' : 'var(--primary-color)'}; color: ${currentPage === totalPages ? 'var(--text-muted)' : 'white'}; border: 1px solid var(--border-color); border-radius: 6px; cursor: ${currentPage === totalPages ? 'not-allowed' : 'pointer'}; font-size: 14px; font-weight: 500; transition: all 0.2s;"
+                            ${currentPage === totalPages ? '' : `onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'"`}
+                        >
+                            Следующая →
+                        </button>
+                    </div>
                 ` : ''}
             `;
 
             container.innerHTML = tableHTML;
+        }
+        
+        function changePage(page) {
+            currentPage = page;
+            displayTransactionsTable();
+            // Scroll to top of transactions
+            document.querySelector('#transactionsTableContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // Show transaction details modal
@@ -2983,79 +3024,79 @@ ${agr.end_date ? `📅 Дата закрытия: ${new Date(agr.end_date).toLoc
             const content = document.getElementById('transactionModalContent');
             
             const details = `
-                <div style="padding: var(--spacing-lg);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-lg); padding-bottom: var(--spacing-md); border-bottom: 2px solid var(--border-color);">
-                        <h2 style="margin: 0; color: var(--text-primary);">Детали операции</h2>
-                        <button onclick="closeTransactionModal()" style="background: none; border: none; font-size: 24px; color: var(--text-secondary); cursor: pointer; padding: 0; width: 32px; height: 32px;">&times;</button>
+                <div style="padding: 24px; background: var(--bg-color);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
+                        <h2 style="margin: 0; color: var(--text-primary); font-size: 20px; font-weight: 600;">Детали операции</h2>
+                        <button onclick="closeTransactionModal()" style="background: var(--bg-hover); border: 1px solid var(--border-color); font-size: 20px; color: var(--text-primary); cursor: pointer; padding: 4px 10px; border-radius: 6px; transition: all 0.2s;" onmouseover="this.style.background='var(--danger-color)'; this.style.color='white';" onmouseout="this.style.background='var(--bg-hover)'; this.style.color='var(--text-primary)';">&times;</button>
                     </div>
                     
-                    <div style="margin-bottom: var(--spacing-xl);">
-                        <div style="text-align: center; margin-bottom: var(--spacing-md);">
-                            <div style="font-size: 36px; font-weight: 700; color: ${tx.creditDebitIndicator === 'Credit' ? 'var(--success-color)' : 'var(--danger-color)'};">
-                                ${tx.creditDebitIndicator === 'Credit' ? '+' : '-'}${parseFloat(tx.amount.amount).toLocaleString('ru-RU')} ₽
+                    <div style="margin-bottom: 24px; padding: 20px; background: ${tx.creditDebitIndicator === 'Credit' ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05))' : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05))'}; border-radius: 12px; border: 1px solid ${tx.creditDebitIndicator === 'Credit' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'};">
+                        <div style="text-align: center;">
+                            <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">
+                                ${tx.creditDebitIndicator === 'Credit' ? '↓ Пополнение' : '↑ Списание'}
                             </div>
-                            <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">
-                                ${tx.creditDebitIndicator === 'Credit' ? 'Пополнение' : 'Списание'}
+                            <div style="font-size: 40px; font-weight: 700; color: ${tx.creditDebitIndicator === 'Credit' ? '#10b981' : '#ef4444'};">
+                                ${tx.creditDebitIndicator === 'Credit' ? '+' : '-'}${parseFloat(tx.amount.amount).toLocaleString('ru-RU')} ₽
                             </div>
                         </div>
                     </div>
                     
-                    <div style="display: grid; gap: var(--spacing-md);">
-                        <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">ОПИСАНИЕ</div>
-                            <div style="font-size: 14px; color: var(--text-primary); font-weight: 500;">${tx.transactionInformation}</div>
+                    <div style="display: grid; gap: 12px;">
+                        <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Описание</div>
+                            <div style="font-size: 15px; color: var(--text-primary); font-weight: 500; line-height: 1.4;">${tx.transactionInformation}</div>
                         </div>
                         
                         ${tx.merchant ? `
-                        <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">МЕРЧАНТ</div>
-                            <div style="font-size: 14px; color: var(--text-primary); font-weight: 500;">📍 ${tx.merchant.name}</div>
-                            ${tx.merchant.category ? `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Категория: ${tx.merchant.category}</div>` : ''}
-                            ${tx.merchant.mccCode ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">MCC: ${tx.merchant.mccCode}</div>` : ''}
+                        <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Мерчант</div>
+                            <div style="font-size: 15px; color: var(--text-primary); font-weight: 600; margin-bottom: 4px;">📍 ${tx.merchant.name}</div>
+                            ${tx.merchant.category ? `<div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Категория: ${tx.merchant.category}</div>` : ''}
+                            ${tx.merchant.mccCode ? `<div style="font-size: 12px; color: var(--text-muted); margin-top: 2px; font-family: monospace;">MCC: ${tx.merchant.mccCode}</div>` : ''}
                         </div>
                         ` : ''}
                         
                         ${tx.transactionLocation ? `
-                        <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">МЕСТОПОЛОЖЕНИЕ</div>
-                            <div style="font-size: 14px; color: var(--text-primary);">
+                        <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Местоположение</div>
+                            <div style="font-size: 15px; color: var(--text-primary); font-weight: 500;">
                                 🌍 ${tx.transactionLocation.city}${tx.transactionLocation.country ? `, ${tx.transactionLocation.country}` : ''}
                             </div>
                         </div>
                         ` : ''}
                         
                         ${tx.card ? `
-                        <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">КАРТА</div>
-                            <div style="font-size: 14px; color: var(--text-primary); font-family: monospace;">
-                                💳 **** **** **** ${tx.card.cardNumber.slice(-4)}
+                        <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Карта</div>
+                            <div style="font-size: 16px; color: var(--text-primary); font-family: 'Courier New', monospace; font-weight: 600; letter-spacing: 1px;">
+                                💳 •••• •••• •••• ${tx.card.cardNumber.slice(-4)}
                             </div>
-                            ${tx.card.cardName ? `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${tx.card.cardName}</div>` : ''}
+                            ${tx.card.cardName ? `<div style="font-size: 13px; color: var(--text-secondary); margin-top: 6px;">${tx.card.cardName}</div>` : ''}
                         </div>
                         ` : ''}
                         
-                        <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">СЧЕТ</div>
-                            <div style="font-size: 14px; color: var(--text-primary); font-family: monospace;">${tx.accountNumber}</div>
-                            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${tx.accountType}</div>
+                        <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Счет</div>
+                            <div style="font-size: 14px; color: var(--text-primary); font-family: 'Courier New', monospace; font-weight: 500;">${tx.accountNumber}</div>
+                            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">${tx.accountType}</div>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);">
-                            <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">ДАТА ОПЕРАЦИИ</div>
-                                <div style="font-size: 13px; color: var(--text-primary);">${new Date(tx.bookingDateTime).toLocaleDateString('ru-RU')}</div>
-                                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">${new Date(tx.bookingDateTime).toLocaleTimeString('ru-RU')}</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Дата операции</div>
+                                <div style="font-size: 14px; color: var(--text-primary); font-weight: 600;">${new Date(tx.bookingDateTime).toLocaleDateString('ru-RU')}</div>
+                                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 3px;">${new Date(tx.bookingDateTime).toLocaleTimeString('ru-RU')}</div>
                             </div>
                             
-                            <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">СТАТУС</div>
-                                <div style="font-size: 13px; color: var(--success-color); font-weight: 500;">✓ Выполнено</div>
+                            <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                                <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">Статус</div>
+                                <div style="font-size: 14px; color: #10b981; font-weight: 600;">✓ Выполнено</div>
                             </div>
                         </div>
                         
-                        <div style="padding: var(--spacing-md); background: var(--card-bg); border-radius: 8px;">
-                            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">ID ТРАНЗАКЦИИ</div>
-                            <div style="font-size: 12px; color: var(--text-secondary); font-family: monospace;">${tx.transactionId}</div>
+                        <div style="padding: 14px; background: var(--bg-hover); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">ID транзакции</div>
+                            <div style="font-size: 11px; color: var(--text-secondary); font-family: 'Courier New', monospace; word-break: break-all;">${tx.transactionId}</div>
                         </div>
                     </div>
                 </div>
