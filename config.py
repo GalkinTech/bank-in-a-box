@@ -2,12 +2,18 @@
 Конфигурация банка
 Команды кастомизируют эти параметры
 """
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class BankConfig(BaseSettings):
     """Настройки банка"""
-    
+
+    model_config = SettingsConfigDict(
+        extra="ignore",
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+
     # === ИДЕНТИФИКАЦИЯ БАНКА (КАСТОМИЗИРУЙ!) ===
     BANK_CODE: str = "vbank"
     BANK_NAME: str = "Virtual Bank"
@@ -17,6 +23,8 @@ class BankConfig(BaseSettings):
     TEAM_CLIENT_ID: str
     TEAM_CLIENT_SECRET: str
     TEAM_CLIENT_ACCESS_TOKEN: str | None = None
+    TEAM_TOKEN: str | None = None
+    TEAM_TOKEN_VBANK: str | None = None
     CLIENT_USERNAME: str | None = None
     CLIENT_PASSWORD: str | None = None
 
@@ -28,7 +36,10 @@ class BankConfig(BaseSettings):
     
     # === DATABASE ===
     DATABASE_URL: str = "postgresql://hackapi_user:hackapi_pass@localhost:5432/vbank_db"
-    
+    POSTGRES_USER: str | None = None
+    POSTGRES_PASSWORD: str | None = None
+    POSTGRES_DB: str | None = None
+
     # === SECURITY ===
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
@@ -41,10 +52,7 @@ class BankConfig(BaseSettings):
     # === REGISTRY (для федеративной архитектуры) ===
     REGISTRY_URL: str = "http://localhost:3000"
     PUBLIC_URL: str = "http://localhost:8001"
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    BASE_URL: str | None = None
 
 
 # Singleton instance

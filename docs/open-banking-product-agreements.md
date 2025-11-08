@@ -2,6 +2,26 @@
 
 Ниже собран пошаговый сценарий для команды `team018`, позволяющий выгрузить договоры клиента `team018-1` из банков VBank, ABank и SBank.
 
+## Получение sandbox-токена через локальный шлюз
+
+Локальный шлюз Banker предоставляет сервис `POST /multibank/bank-token`, который по URL банка возвращает временный токен доступа. Команда, поддерживающая `credit-analytics-backend`, должна получать его именно так, чтобы использовать общие rate-limit политики.
+
+```bash
+export BANK_API_BASE_URL=${BANK_API_BASE_URL:-http://localhost:8080}
+export BANK_URL="https://abank.open.bankingapi.ru"  # замените на vbank/sbank при необходимости
+
+curl -X POST "${BANK_API_BASE_URL}/multibank/bank-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "bank_url": "'"${BANK_URL}"'"
+      }'
+```
+
+* __Ответ__: JSON с полями `access_token`, `token_type`, `client_id`, `expires_in`.
+* __Срок действия__: 24 часа. Сохраняйте значение токена в `.env` микросервиса `credit-analytics-backend/` (файл не попадает в git).
+* __Пример__: токен, выданный `2025-11-08T13:05:59+03:00`, сохранён в `microservices/credit-analytics-backend/.env` под ключом `ABANK_SANDBOX_ACCESS_TOKEN`.
+
+
 ## Общие переменные окружения
 
 ```bash
@@ -65,44 +85,51 @@ curl -s "https://vbank.open.bankingapi.ru/product-agreements" \
 
 ## ABank
 
-```bash
-# 1. Токен команды
-export TEAM_TOKEN_ABANK=$(curl -s -G "https://abank.open.bankingapi.ru/auth/bank-token" \
-  --data-urlencode "client_id=$TEAM_CLIENT_ID" \
-  --data-urlencode "client_secret=$TEAM_CLIENT_SECRET" | jq -r '.access_token')
+Песочница ABank требует токена, полученного через локальный шлюз Banker (`POST /multibank/bank-token`), и свежего consent. Сертификат sandbox самоподписан, поэтому используйте `curl --insecure` или настройте доверенный `CA`.
 
-# 2. Запрашиваем consent (автоодобрение)
-curl -s -X POST "https://abank.open.bankingapi.ru/product-agreement-consents/request?client_id=$CLIENT_ID" \
-  -H "Authorization: Bearer $TEAM_TOKEN_ABANK" \
+```bash
+# 1. Подхватываем готовые переменные (токен уже сохранён в .env)
+export ABANK_BASE_URL=https://abank.open.bankingapi.ru
+export ABANK_SANDBOX_ACCESS_TOKEN=$(grep '^ABANK_SANDBOX_ACCESS_TOKEN=' microservices/credit-analytics-backend/.env | cut -d= -f2-)
+
+# 2. Проверяем, что токен действительно есть
+echo "$ABANK_SANDBOX_ACCESS_TOKEN" | head -c 20 && echo "..."
+
+# 3. Запрашиваем новый consent (requesting_bank обязан совпадать с client_id токена — team200)
+export ABANK_PRODUCT_AGREEMENT_CONSENT_ID=$(curl -sS --insecure -X POST \
+  "$ABANK_BASE_URL/product-agreement-consents/request?client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $ABANK_SANDBOX_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-        "requesting_bank": "team018",
+        "requesting_bank": "team200",
         "client_id": "'"$CLIENT_ID"'",
         "read_product_agreements": true,
         "open_product_agreements": false,
         "close_product_agreements": false,
         "allowed_product_types": ["deposit","card","loan"],
-        "reason": "Агрегатор команды team018"
-      }' | jq
+        "reason": "Агрегатор OptiFi"
+      }' | jq -r '.consent_id // empty')
 
-# 3. Сохраняем consent ID
-export ABANK_PRODUCT_AGREEMENT_CONSENT_ID=pagc-bec67e156704
+# 4. Убедимся, что consent_id получен
+echo "ABank consent: $ABANK_PRODUCT_AGREEMENT_CONSENT_ID"
 
-# 4. Получаем договоры
-curl -s "https://abank.open.bankingapi.ru/product-agreements" \
-  -H "Authorization: Bearer $TEAM_TOKEN_ABANK" \
-  -H "x-requesting-bank: team018" \
+# 5. Запрашиваем договоры клиента
+curl -sS --insecure "$ABANK_BASE_URL/product-agreements" \
+  -G --data-urlencode "client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $ABANK_SANDBOX_ACCESS_TOKEN" \
+  -H "x-requesting-bank: team200" \
   -H "x-product-agreement-consent-id: $ABANK_PRODUCT_AGREEMENT_CONSENT_ID" \
-  -G --data-urlencode "client_id=$CLIENT_ID" | jq
+  | jq
 ```
 
-Ответ (сокращённо):
+Пример успешного ответа (`2025-11-08`):
 
 ```json
 {
   "data": [
     {
       "agreement_id": "agr-7813df17497b",
+      "product_id": "prod-b6590d81632b",
       "product_name": "Экспресс кредит 14.2%",
       "product_type": "loan",
       "amount": 420000.0,
@@ -189,6 +216,138 @@ curl -s "https://sbank.open.bankingapi.ru/product-agreements" \
 * Для SBank требуется клиентский JWT (`SBANK_CLIENT_TOKEN`) и ручное подтверждение согласия.
 
 Эти значения уже добавлены в `OptiFi/.env`. Документ пригодится для замены моковых данных в микросервисе `microservices/credit-analytics-backend/` и автоматизации интеграции с Open Banking.
+
+## Быстрый гайд: получение договоров через sandbox (token → consent → agreements)
+
+> ⚠️ Sandbox шлюз Banker (`POST /multibank/bank-token`) всегда возвращает токен с `client_id: "team200"`. Поэтому заголовок `x-requesting-bank` и поле `requesting_bank` в согласии **обязаны** быть `team200`, даже если команда называется `team018`.
+
+### Шаг 1. Общие переменные
+
+```bash
+export CLIENT_ID=team018-1
+export SBANK_CLIENT_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZWFtMDE4LTEiLCJ0eXBlIjoiY2xpZW50IiwiYmFuayI6InNlbGYiLCJleHAiOjE3NjI1ODcxNzJ9.m_ZW4jNL-23TQETUTQZ9HGSn2rVFPB48mYXh2hjWp1Y
+```
+
+### Шаг 2. ABank
+
+```bash
+# 2.1 Получаем sandbox-токен через локальный шлюз
+export ABANK_SANDBOX_ACCESS_TOKEN=$(curl -sS -X POST \
+  "http://localhost:8080/multibank/bank-token" \
+  -H "Content-Type: application/json" \
+  -d '{"bank_url":"https://abank.open.bankingapi.ru"}' \
+  | jq -r '.access_token')
+
+# 2.2 Запрашиваем consent (requesting_bank = team200)
+export ABANK_PRODUCT_AGREEMENT_CONSENT_ID=$(curl -sS --insecure -X POST \
+  "https://abank.open.bankingapi.ru/product-agreement-consents/request?client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $ABANK_SANDBOX_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "requesting_bank": "team200",
+        "client_id": "'"$CLIENT_ID"'",
+        "read_product_agreements": true,
+        "open_product_agreements": false,
+        "close_product_agreements": false,
+        "allowed_product_types": ["deposit","card","loan"],
+        "reason": "Агрегатор OptiFi"
+      }' | jq -r '.consent_id // empty')
+
+# 2.3 Получаем договоры
+curl -sS --insecure "https://abank.open.bankingapi.ru/product-agreements" \
+  -G --data-urlencode "client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $ABANK_SANDBOX_ACCESS_TOKEN" \
+  -H "x-requesting-bank: team200" \
+  -H "x-product-agreement-consent-id: $ABANK_PRODUCT_AGREEMENT_CONSENT_ID" \
+  | jq
+```
+
+### Шаг 3. VBank
+
+```bash
+# 3.1 Sandbox-токен
+export VBANK_SANDBOX_ACCESS_TOKEN=$(curl -sS -X POST \
+  "http://localhost:8080/multibank/bank-token" \
+  -H "Content-Type: application/json" \
+  -d '{"bank_url":"https://vbank.open.bankingapi.ru"}' \
+  | jq -r '.access_token')
+
+# 3.2 Consent
+export VBANK_PRODUCT_AGREEMENT_CONSENT_ID=$(curl -sS --insecure -X POST \
+  "https://vbank.open.bankingapi.ru/product-agreement-consents/request?client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $VBANK_SANDBOX_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "requesting_bank": "team200",
+        "client_id": "'"$CLIENT_ID"'",
+        "read_product_agreements": true,
+        "open_product_agreements": false,
+        "close_product_agreements": false,
+        "allowed_product_types": ["deposit","card","loan"],
+        "reason": "Агрегатор OptiFi"
+      }' | jq -r '.consent_id // empty')
+
+# 3.3 Договоры
+curl -sS --insecure "https://vbank.open.bankingapi.ru/product-agreements" \
+  -G --data-urlencode "client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $VBANK_SANDBOX_ACCESS_TOKEN" \
+  -H "x-requesting-bank: team200" \
+  -H "x-product-agreement-consent-id: $VBANK_PRODUCT_AGREEMENT_CONSENT_ID" \
+  | jq
+```
+
+### Шаг 4. SBank (auto-approved consent)
+
+```bash
+# 4.1 Sandbox-токен
+export SBANK_SANDBOX_ACCESS_TOKEN=$(curl -sS -X POST \
+  "http://localhost:8080/multibank/bank-token" \
+  -H "Content-Type: application/json" \
+  -d '{"bank_url":"https://sbank.open.bankingapi.ru"}' \
+  | jq -r '.access_token')
+
+# 4.2 Запрос согласия
+SBANK_CONSENT_RESPONSE=$(curl -sS --insecure -X POST \
+  "https://sbank.open.bankingapi.ru/product-agreement-consents/request?client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $SBANK_SANDBOX_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "requesting_bank": "team200",
+        "client_id": "'"$CLIENT_ID"'",
+        "read_product_agreements": true,
+        "open_product_agreements": false,
+        "close_product_agreements": false,
+        "allowed_product_types": ["deposit","card","loan"],
+        "reason": "Агрегатор OptiFi"
+      }')
+
+export SBANK_PRODUCT_AGREEMENT_CONSENT_ID=$(echo "$SBANK_CONSENT_RESPONSE" | jq -r '.consent_id // empty')
+
+# 4.3 Падение в auto-approved пока не требует подписи. Если consent_id пустой, добираем через status:
+if [ -z "$SBANK_PRODUCT_AGREEMENT_CONSENT_ID" ]; then
+  export SBANK_CONSENT_REQUEST_ID=$(echo "$SBANK_CONSENT_RESPONSE" | jq -r '.request_id')
+  SBANK_STATUS=$(curl -sS --insecure \
+    "https://sbank.open.bankingapi.ru/product-agreement-consents/$SBANK_CONSENT_REQUEST_ID")
+  export SBANK_PRODUCT_AGREEMENT_CONSENT_ID=$(echo "$SBANK_STATUS" | jq -r '.data.consentId')
+fi
+
+# 4.4 Договоры SBank
+curl -sS --insecure "https://sbank.open.bankingapi.ru/product-agreements" \
+  -G --data-urlencode "client_id=$CLIENT_ID" \
+  -H "Authorization: Bearer $SBANK_SANDBOX_ACCESS_TOKEN" \
+  -H "x-requesting-bank: team200" \
+  -H "x-product-agreement-consent-id: $SBANK_PRODUCT_AGREEMENT_CONSENT_ID" \
+  | jq
+```
+
+### Полезные проверки
+
+```bash
+echo "ABank token: ${ABANK_SANDBOX_ACCESS_TOKEN:0:20}..."
+echo "ABank consent: $ABANK_PRODUCT_AGREEMENT_CONSENT_ID"
+```
+
+Если переменная пустая, повторите соответствующий шаг. Убедитесь, что `jq` установлен, чтобы парсить ответы.
 
 ## Получение счетов и балансов клиентов других банков
 

@@ -10,25 +10,25 @@ from datetime import datetime
 from pathlib import Path
 
 try:
-    # Попытка относительного импорта (для пакетного режима)
-    from .config import config
-    from .database import engine
-    from .models import Base
-    from .middleware import APILoggingMiddleware
-    from .api import (
-        accounts, auth, consents, payments, admin, products, well_known, 
-        banker, product_agreements, product_agreement_consents,
-        product_applications, customer_leads, product_offers, product_offer_consents,
-        vrp_consents, vrp_payments, interbank, payment_consents
-    )
-except ImportError:
-    # Абсолютный импорт (для прямого запуска)
+    # Абсолютный импорт (стандартный запуск)
     from config import config
     from database import engine
     from models import Base
     from middleware import APILoggingMiddleware
     from api import (
-        accounts, auth, consents, payments, admin, products, well_known, 
+        accounts, auth, consents, payments, admin, products, well_known,
+        banker, product_agreements, product_agreement_consents,
+        product_applications, customer_leads, product_offers, product_offer_consents,
+        vrp_consents, vrp_payments, interbank, payment_consents, multibank_proxy
+    )
+except ImportError:  # pragma: no cover - пакетный режим
+    # Относительный импорт (если проект установлен как пакет)
+    from .config import config
+    from .database import engine
+    from .models import Base
+    from .middleware import APILoggingMiddleware
+    from .api import (
+        accounts, auth, consents, payments, admin, products, well_known,
         banker, product_agreements, product_agreement_consents,
         product_applications, customer_leads, product_offers, product_offer_consents,
         vrp_consents, vrp_payments, interbank, payment_consents, multibank_proxy
