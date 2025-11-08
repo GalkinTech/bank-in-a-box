@@ -18,6 +18,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Bearer token scheme
 security = HTTPBearer()
 
+# Unified error messages
+ERROR_NOT_AUTHENTICATED = "Not authenticated. Authorization token required"
+ERROR_INVALID_CREDENTIALS = "Could not validate credentials"
+ERROR_INSUFFICIENT_PERMISSIONS = "Insufficient permissions"
+
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None, use_rs256: bool = False):
     """Создание JWT токена (HS256 или RS256)"""
@@ -65,7 +70,13 @@ async def verify_token(token: str, bank_code: Optional[str] = None) -> dict:
     try:
         # Сначала пробуем HS256
         try:
-            payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+            # Отключаем проверку iss и aud для совместимости
+            payload = jwt.decode(
+                token, 
+                config.SECRET_KEY, 
+                algorithms=[config.ALGORITHM],
+                options={"verify_aud": False, "verify_iss": False}
+            )
             return payload
         except JWTError:
             pass
@@ -83,7 +94,8 @@ async def verify_token(token: str, bank_code: Optional[str] = None) -> dict:
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
+            detail=ERROR_INVALID_CREDENTIALS,
+            headers={"WWW-Authenticate": "Bearer"}
         )
 
 
@@ -214,6 +226,117 @@ async def get_current_banker(
         return None
     
     return None
+
+
+# ============================================================================
+# СТРОГИЕ ЗАВИСИМОСТИ (Required Dependencies) - всегда поднимают 401
+# ============================================================================
+
+async def require_client(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """
+    Строгая зависимость - требует валидный client токен
+    Автоматически поднимает 401 если токен отсутствует или невалиден
+    """
+    token = credentials.credentials
+    payload = await verify_token(token)
+    
+    if payload.get("type") != "client":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_INSUFFICIENT_PERMISSIONS,
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    return {
+        "client_id": payload.get("sub"),
+        "type": "client"
+    }
+
+
+async def require_bank(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """
+    Строгая зависимость - требует валидный bank/team токен
+    Автоматически поднимает 401 если токен отсутствует или невалиден
+    """
+    token = credentials.credentials
+    payload = await verify_token(token)
+    
+    if payload.get("type") not in ["bank", "team"]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_INSUFFICIENT_PERMISSIONS,
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    return {
+        "bank_code": payload.get("sub"),
+        "client_id": payload.get("client_id"),
+        "type": payload.get("type")
+    }
+
+
+async def require_banker(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """
+    Строгая зависимость - требует валидный banker токен
+    Автоматически поднимает 401 если токен отсутствует или невалиден
+    """
+    token = credentials.credentials
+    payload = await verify_token(token)
+    
+    if payload.get("type") != "banker":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_INSUFFICIENT_PERMISSIONS,
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    return {
+        "username": payload.get("sub"),
+        "type": "banker"
+    }
+
+
+async def require_any_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """
+    Строгая зависимость - требует любой валидный токен (client/bank/banker)
+    Автоматически поднимает 401 если токен отсутствует или невалиден
+    Возвращает payload токена
+    """
+    token = credentials.credentials
+    payload = await verify_token(token)
+    
+    token_type = payload.get("type")
+    
+    if token_type == "client":
+        return {
+            "client_id": payload.get("sub"),
+            "type": "client"
+        }
+    elif token_type in ["bank", "team"]:
+        return {
+            "bank_code": payload.get("sub"),
+            "client_id": payload.get("client_id"),
+            "type": token_type
+        }
+    elif token_type == "banker":
+        return {
+            "username": payload.get("sub"),
+            "type": "banker"
+        }
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_INSUFFICIENT_PERMISSIONS,
+            headers={"WWW-Authenticate": "Bearer"}
+        )
 
 
 def hash_password(password: str) -> str:
