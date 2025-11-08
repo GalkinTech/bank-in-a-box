@@ -275,4 +275,211 @@ router.get('/suggestions', async (req, res) => {
   }
 });
 
+router.post('/applications', async (req, res) => {
+  try {
+    const {
+      agreement_id: agreementId,
+      desired_term_months: desiredTermMonths,
+      comment,
+      product_id: providedProductId,
+      amount: providedAmount,
+      offer_term_months: offerTermMonths,
+    } = req.body ?? {};
+
+    if (!agreementId) {
+      res.status(400).json({ error: 'agreement_id is required' });
+      return;
+    }
+
+    if (config.useMockData) {
+      const amountValue = toNumber(providedAmount, 500000);
+      res.status(201).json({
+        status: 'mock-submitted',
+        data: {
+          agreement: {
+            agreement_id: `agr-mock-${Date.now()}`,
+            product_id: providedProductId ?? 'prod-mock-refinance',
+            product_name: 'Моковый кредит на рефинансирование',
+            product_type: 'loan',
+            amount: amountValue,
+            status: 'pending',
+            start_date: new Date().toISOString(),
+            end_date: null,
+            account_number: null,
+          },
+        },
+        meta: {
+          agreement_id: agreementId,
+          product_id: providedProductId ?? 'prod-mock-refinance',
+          amount: amountValue,
+          term_months: offerTermMonths ?? desiredTermMonths ?? DEFAULT_FALLBACK_TERM,
+          comment: comment ?? null,
+          mock: true,
+        },
+      });
+      return;
+    }
+
+    const authHeader = ensureAuthToken(req);
+    const client = bankApiClient(authHeader);
+
+    const [agreementsResponse, productsResponse, externalLoansRaw] = await Promise.all([
+      client.get('/product-agreements'),
+      client.get('/products', { params: { product_type: 'loan' } }),
+      fetchExternalLoans().catch((error) => {
+        // eslint-disable-next-line no-console
+        console.warn('[refinance] Failed to fetch external loans for application', error);
+        return [];
+      }),
+    ]);
+
+    const agreements = agreementsResponse.data?.data ?? [];
+    const rawProducts = productsResponse.data?.data?.product ?? [];
+    const bankProducts = rawProducts.map((product) => normalizeProduct(product)).filter(Boolean);
+
+    const internalLoans = agreements
+      .filter((agreement) => agreement.product_type === 'loan')
+      .map((agreement) => ({
+        ...agreement,
+        source: agreement.source ?? 'internal',
+      }));
+
+    const externalLoans = Array.isArray(externalLoansRaw) ? externalLoansRaw : [];
+    const combinedLoans = [...internalLoans, ...externalLoans];
+    const enrichedLoans = enrichLoansWithOffers(combinedLoans, bankProducts);
+
+    const sourceLoan = enrichedLoans.find(
+      (loan) => loan.agreement_id === agreementId || loan.loan_id === agreementId
+    );
+
+    if (!sourceLoan) {
+      res.status(404).json({ error: 'Loan agreement not found for refinance application' });
+      return;
+    }
+
+    const loanSnapshot = { ...sourceLoan };
+
+    const selectedOffer = loanSnapshot.refinance_offer || null;
+
+    const targetProductId = providedProductId
+      || selectedOffer?.product_id
+      || bankProducts[0]?.productId
+      || null;
+
+    if (!targetProductId) {
+      res.status(409).json({ error: 'No refinance offer available to create a product' });
+      return;
+    }
+
+    const targetProduct = bankProducts.find((product) => product.productId === targetProductId);
+    if (!targetProduct) {
+      res.status(404).json({ error: `Product ${targetProductId} not found in bank catalogue` });
+      return;
+    }
+
+    const candidateTermMonths = [
+      toNumber(desiredTermMonths),
+      toNumber(offerTermMonths),
+      toNumber(selectedOffer?.product_term_months),
+      toNumber(selectedOffer?.assumptions?.term_months),
+      toNumber(loanSnapshot?.remaining_term_months),
+      toNumber(targetProduct.termMonths),
+    ].filter((value) => Number.isFinite(value) && value > 0);
+
+    const resolvedTermMonths = candidateTermMonths.length
+      ? Math.round(candidateTermMonths[0])
+      : DEFAULT_FALLBACK_TERM;
+
+    const candidateAmounts = [
+      toNumber(providedAmount),
+      toNumber(selectedOffer?.assumptions?.principal),
+      toNumber(loanSnapshot?.amount),
+      toNumber(targetProduct.minAmount),
+    ].filter((value) => Number.isFinite(value) && value > 0);
+
+    let resolvedAmount = candidateAmounts.length ? candidateAmounts[0] : null;
+
+    if (!Number.isFinite(resolvedAmount) || resolvedAmount <= 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[refinance] invalid resolved amount', {
+        agreementId,
+        candidateAmounts,
+        providedAmount,
+        sourceLoanAmount: loanSnapshot?.amount,
+        selectedOffer,
+      });
+      res.status(400).json({
+        error: 'Unable to determine refinance amount for product creation',
+        details: {
+          candidateAmounts,
+          providedAmount,
+          sourceLoanAmount: loanSnapshot?.amount ?? null,
+          offer: selectedOffer,
+        },
+      });
+      return;
+    }
+
+    if (Number.isFinite(targetProduct.minAmount) && resolvedAmount < targetProduct.minAmount) {
+      resolvedAmount = Number(targetProduct.minAmount);
+    }
+
+    if (Number.isFinite(targetProduct.maxAmount) && resolvedAmount > targetProduct.maxAmount) {
+      resolvedAmount = Number(targetProduct.maxAmount);
+    }
+
+    const createPayload = {
+      product_id: targetProductId,
+      amount: Number(resolvedAmount.toFixed(2)),
+      term_months: resolvedTermMonths,
+    };
+
+    // eslint-disable-next-line no-console
+    console.log('[refinance] creating product agreement', {
+      agreementId,
+      createPayload,
+      sourceLoan: {
+        agreement_id: loanSnapshot.agreement_id,
+        amount: loanSnapshot.amount,
+        offer: selectedOffer,
+      },
+    });
+
+    const createResponse = await client.post('/product-agreements', createPayload);
+    const createdAgreement = createResponse.data?.data ?? null;
+
+    res.status(201).json({
+      status: createResponse.data?.meta?.message ?? 'created',
+      data: {
+        agreement: createdAgreement,
+      },
+      meta: {
+        agreement_id: agreementId,
+        product_id: targetProductId,
+        amount: createPayload.amount,
+        term_months: createPayload.term_months,
+        comment: comment ?? null,
+        offer: selectedOffer,
+        loan_snapshot: loanSnapshot,
+      },
+    });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[refinance] failed to submit application', {
+      error: error.message,
+      status: error.status,
+      details: error.details,
+      stack: error.stack,
+    });
+
+    if (error.status) {
+      res.status(error.status).json({ error: error.message, details: error.details });
+      return;
+    }
+
+    const formatted = handleAxiosError(error);
+    res.status(formatted.status).json({ error: formatted.message, details: formatted.data });
+  }
+});
+
 export default router;
