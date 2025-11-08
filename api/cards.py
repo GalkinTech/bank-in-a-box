@@ -14,6 +14,7 @@ import random
 from ..database import get_db
 from ..models import Card, Account, Client
 from ..services.auth_service import require_any_token, require_client
+from ..services.consent_service import ConsentService
 
 
 router = APIRouter(prefix="/cards", tags=["8 Карты"])
@@ -93,6 +94,8 @@ def mask_card_number(card_number: str) -> str:
 @router.get("", summary="1. Получить список карт")
 async def get_cards(
     client_id: Optional[str] = Query(None, description="ID клиента (для bank_token)"),
+    x_requesting_bank: Optional[str] = Header(None, alias="X-Requesting-Bank"),
+    x_consent_id: Optional[str] = Header(None, alias="X-Consent-Id"),
     token_data: dict = Depends(require_any_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -103,14 +106,45 @@ async def get_cards(
     - Список карт с маскированными номерами
     - Информацию о привязанных счетах
     - Лимиты и статусы
+    
+    **Межбанковый доступ:**
+    - Требуется согласие с permission `ReadCards`
+    - Заголовки: `X-Requesting-Bank`, `X-Consent-Id`
     """
-    # Определить client_id
-    if token_data.get("type") == "client":
-        target_client_id = token_data.get("client_id")
-    elif client_id:
+    # Определяем, чей это запрос
+    if x_requesting_bank:
+        # Межбанковский запрос - требуется согласие
+        if not client_id:
+            raise HTTPException(400, "client_id required for interbank requests")
+        
+        # Проверить согласие
+        consent = await ConsentService.check_consent(
+            db=db,
+            client_person_id=client_id,
+            requesting_bank=x_requesting_bank,
+            permissions=["ReadCards"],
+            consent_id=x_consent_id
+        )
+        
+        if not consent:
+            raise HTTPException(
+                403,
+                {
+                    "error": "CONSENT_REQUIRED",
+                    "message": "Valid consent with 'ReadCards' permission required",
+                    "how_to_get_consent": "POST /account-consents with permissions: ['ReadCards']"
+                }
+            )
+        
         target_client_id = client_id
     else:
-        raise HTTPException(401, "Unauthorized")
+        # Локальный запрос
+        if token_data.get("type") == "client":
+            target_client_id = token_data.get("client_id")
+        elif client_id:
+            target_client_id = client_id
+        else:
+            raise HTTPException(401, "Unauthorized")
     
     # Найти клиента
     result = await db.execute(
@@ -162,6 +196,8 @@ async def get_card_details(
     card_id: str,
     show_full_number: bool = Query(False, description="Показать полный номер карты"),
     client_id: Optional[str] = Query(None, description="ID клиента (для bank_token)"),
+    x_requesting_bank: Optional[str] = Header(None, alias="X-Requesting-Bank"),
+    x_consent_id: Optional[str] = Header(None, alias="X-Consent-Id"),
     token_data: dict = Depends(require_any_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -170,14 +206,43 @@ async def get_card_details(
     
     **Параметры:**
     - `show_full_number=true` - показать полный номер (только для владельца)
+    
+    **Межбанковый доступ:**
+    - Требуется согласие с permission `ReadCards`
+    - Полный номер карты доступен только владельцу (локальный запрос)
     """
-    # Определить client_id
-    if token_data.get("type") == "client":
-        target_client_id = token_data.get("client_id")
-    elif client_id:
+    # Определяем, чей это запрос
+    if x_requesting_bank:
+        # Межбанковский запрос - требуется согласие
+        if not client_id:
+            raise HTTPException(400, "client_id required for interbank requests")
+        
+        # Проверить согласие
+        consent = await ConsentService.check_consent(
+            db=db,
+            client_person_id=client_id,
+            requesting_bank=x_requesting_bank,
+            permissions=["ReadCards"],
+            consent_id=x_consent_id
+        )
+        
+        if not consent:
+            raise HTTPException(403, {
+                "error": "CONSENT_REQUIRED",
+                "message": "Valid consent with 'ReadCards' permission required"
+            })
+        
         target_client_id = client_id
+        # Межбанковый запрос не может видеть полный номер
+        show_full_number = False
     else:
-        raise HTTPException(401, "Unauthorized")
+        # Локальный запрос
+        if token_data.get("type") == "client":
+            target_client_id = token_data.get("client_id")
+        elif client_id:
+            target_client_id = client_id
+        else:
+            raise HTTPException(401, "Unauthorized")
     
     # Найти клиента
     result = await db.execute(
@@ -228,6 +293,8 @@ async def get_card_details(
 async def create_card(
     request: CreateCardRequest,
     client_id: Optional[str] = Query(None, description="ID клиента (для bank_token)"),
+    x_requesting_bank: Optional[str] = Header(None, alias="X-Requesting-Bank"),
+    x_consent_id: Optional[str] = Header(None, alias="X-Consent-Id"),
     token_data: dict = Depends(require_any_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -238,14 +305,40 @@ async def create_card(
     - Счет должен быть типа checking или savings
     - Счет должен принадлежать клиенту
     - К одному счету можно привязать несколько карт
+    
+    **Межбанковый доступ:**
+    - Требуется согласие с permission `ManageCards`
     """
-    # Определить client_id
-    if token_data.get("type") == "client":
-        target_client_id = token_data.get("client_id")
-    elif client_id:
+    # Определяем, чей это запрос
+    if x_requesting_bank:
+        # Межбанковский запрос - требуется согласие
+        if not client_id:
+            raise HTTPException(400, "client_id required for interbank requests")
+        
+        # Проверить согласие
+        consent = await ConsentService.check_consent(
+            db=db,
+            client_person_id=client_id,
+            requesting_bank=x_requesting_bank,
+            permissions=["ManageCards"],
+            consent_id=x_consent_id
+        )
+        
+        if not consent:
+            raise HTTPException(403, {
+                "error": "CONSENT_REQUIRED",
+                "message": "Valid consent with 'ManageCards' permission required"
+            })
+        
         target_client_id = client_id
     else:
-        raise HTTPException(401, "Unauthorized")
+        # Локальный запрос
+        if token_data.get("type") == "client":
+            target_client_id = token_data.get("client_id")
+        elif client_id:
+            target_client_id = client_id
+        else:
+            raise HTTPException(401, "Unauthorized")
     
     # Найти клиента
     result = await db.execute(
@@ -356,6 +449,8 @@ async def update_card_status(
     card_id: str,
     request: UpdateCardStatusRequest,
     client_id: Optional[str] = Query(None, description="ID клиента (для bank_token)"),
+    x_requesting_bank: Optional[str] = Header(None, alias="X-Requesting-Bank"),
+    x_consent_id: Optional[str] = Header(None, alias="X-Consent-Id"),
     token_data: dict = Depends(require_any_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -366,14 +461,40 @@ async def update_card_status(
     - `active` - активна
     - `blocked` - заблокирована
     - `expired` - истек срок действия
+    
+    **Межбанковый доступ:**
+    - Требуется согласие с permission `ManageCards`
     """
-    # Определить client_id
-    if token_data.get("type") == "client":
-        target_client_id = token_data.get("client_id")
-    elif client_id:
+    # Определяем, чей это запрос
+    if x_requesting_bank:
+        # Межбанковский запрос - требуется согласие
+        if not client_id:
+            raise HTTPException(400, "client_id required for interbank requests")
+        
+        # Проверить согласие
+        consent = await ConsentService.check_consent(
+            db=db,
+            client_person_id=client_id,
+            requesting_bank=x_requesting_bank,
+            permissions=["ManageCards"],
+            consent_id=x_consent_id
+        )
+        
+        if not consent:
+            raise HTTPException(403, {
+                "error": "CONSENT_REQUIRED",
+                "message": "Valid consent with 'ManageCards' permission required"
+            })
+        
         target_client_id = client_id
     else:
-        raise HTTPException(401, "Unauthorized")
+        # Локальный запрос
+        if token_data.get("type") == "client":
+            target_client_id = token_data.get("client_id")
+        elif client_id:
+            target_client_id = client_id
+        else:
+            raise HTTPException(401, "Unauthorized")
     
     # Найти клиента
     result = await db.execute(
@@ -427,19 +548,47 @@ async def update_card_limits(
     card_id: str,
     request: CardLimitsRequest,
     client_id: Optional[str] = Query(None, description="ID клиента (для bank_token)"),
+    x_requesting_bank: Optional[str] = Header(None, alias="X-Requesting-Bank"),
+    x_consent_id: Optional[str] = Header(None, alias="X-Consent-Id"),
     token_data: dict = Depends(require_any_token),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Обновить дневной и месячный лимиты карты
+    
+    **Межбанковый доступ:**
+    - Требуется согласие с permission `ManageCards`
     """
-    # Определить client_id
-    if token_data.get("type") == "client":
-        target_client_id = token_data.get("client_id")
-    elif client_id:
+    # Определяем, чей это запрос
+    if x_requesting_bank:
+        # Межбанковский запрос - требуется согласие
+        if not client_id:
+            raise HTTPException(400, "client_id required for interbank requests")
+        
+        # Проверить согласие
+        consent = await ConsentService.check_consent(
+            db=db,
+            client_person_id=client_id,
+            requesting_bank=x_requesting_bank,
+            permissions=["ManageCards"],
+            consent_id=x_consent_id
+        )
+        
+        if not consent:
+            raise HTTPException(403, {
+                "error": "CONSENT_REQUIRED",
+                "message": "Valid consent with 'ManageCards' permission required"
+            })
+        
         target_client_id = client_id
     else:
-        raise HTTPException(401, "Unauthorized")
+        # Локальный запрос
+        if token_data.get("type") == "client":
+            target_client_id = token_data.get("client_id")
+        elif client_id:
+            target_client_id = client_id
+        else:
+            raise HTTPException(401, "Unauthorized")
     
     # Найти клиента
     result = await db.execute(
@@ -488,6 +637,8 @@ async def update_card_limits(
 async def delete_card(
     card_id: str,
     client_id: Optional[str] = Query(None, description="ID клиента (для bank_token)"),
+    x_requesting_bank: Optional[str] = Header(None, alias="X-Requesting-Bank"),
+    x_consent_id: Optional[str] = Header(None, alias="X-Consent-Id"),
     token_data: dict = Depends(require_any_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -495,14 +646,40 @@ async def delete_card(
     Удалить карту (перевыпуск или закрытие)
     
     **Важно:** Счет остается активным, удаляется только карта
+    
+    **Межбанковый доступ:**
+    - Требуется согласие с permission `ManageCards`
     """
-    # Определить client_id
-    if token_data.get("type") == "client":
-        target_client_id = token_data.get("client_id")
-    elif client_id:
+    # Определяем, чей это запрос
+    if x_requesting_bank:
+        # Межбанковский запрос - требуется согласие
+        if not client_id:
+            raise HTTPException(400, "client_id required for interbank requests")
+        
+        # Проверить согласие
+        consent = await ConsentService.check_consent(
+            db=db,
+            client_person_id=client_id,
+            requesting_bank=x_requesting_bank,
+            permissions=["ManageCards"],
+            consent_id=x_consent_id
+        )
+        
+        if not consent:
+            raise HTTPException(403, {
+                "error": "CONSENT_REQUIRED",
+                "message": "Valid consent with 'ManageCards' permission required"
+            })
+        
         target_client_id = client_id
     else:
-        raise HTTPException(401, "Unauthorized")
+        # Локальный запрос
+        if token_data.get("type") == "client":
+            target_client_id = token_data.get("client_id")
+        elif client_id:
+            target_client_id = client_id
+        else:
+            raise HTTPException(401, "Unauthorized")
     
     # Найти клиента
     result = await db.execute(
