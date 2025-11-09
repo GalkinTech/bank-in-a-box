@@ -1338,18 +1338,25 @@ watch(
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
+}
+
+.widget-header .header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .widget-header h1 {
   font-size: clamp(2rem, 3vw, 2.5rem);
   font-weight: 700;
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .widget-header p {
   color: #51606f;
   max-width: 560px;
+  margin: 0;
 }
 
 .header-actions {
@@ -1400,6 +1407,7 @@ watch(
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
+  margin-bottom: clamp(32px, 5vw, 56px);
 }
 
 .summary-card {
@@ -1451,10 +1459,23 @@ watch(
 @media (max-width: 768px) {
   .summary-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    margin-bottom: clamp(16px, 2.5vw, 28px);
   }
 
   .refinance-widget {
-    padding: 24px 16px 64px;
+    padding: 18px 12px 32px;
+  }
+
+  .content {
+    gap: 16px;
+  }
+
+  .state {
+    padding: 24px 18px;
+  }
+
+  .summary-card {
+    padding: 14px 16px;
   }
 
   .summary-card .summary-label {
@@ -1773,7 +1794,7 @@ watch(
   }
 
   .refinance-widget {
-    padding: 24px 16px 64px;
+    padding: 18px 12px 32px;
   }
 }
 </style>

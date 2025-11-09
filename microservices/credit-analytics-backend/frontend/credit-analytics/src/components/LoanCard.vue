@@ -159,10 +159,10 @@ const toggleMultiSelection = () => {
 }
 
 .loan-card__content {
-  padding: 18px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .loan-card:hover,
@@ -229,7 +229,7 @@ const toggleMultiSelection = () => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
 }
 
 .loan-card__header h3 {
@@ -254,13 +254,13 @@ const toggleMultiSelection = () => {
 .loan-card__body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .loan-details {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .detail .label {
@@ -269,7 +269,7 @@ const toggleMultiSelection = () => {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #8693a6;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 
 .detail .value {
@@ -292,10 +292,10 @@ const toggleMultiSelection = () => {
 .offer {
   border-radius: 14px;
   border: 1px dashed rgba(92, 108, 255, 0.32);
-  padding: 14px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   background: linear-gradient(135deg, rgba(92, 108, 255, 0.08), rgba(120, 198, 255, 0.08));
 }
 
@@ -333,7 +333,7 @@ const toggleMultiSelection = () => {
 .offer-body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
+  gap: 6px;
 }
 
 .offer-item .label {
@@ -363,6 +363,28 @@ const toggleMultiSelection = () => {
   .loan-card {
     flex: 0 0 calc(100% - 40px);
     margin-right: 0;
+  }
+
+  .loan-card__content {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .loan-card__body {
+    gap: 10px;
+  }
+
+  .loan-details {
+    gap: 6px;
+  }
+
+  .offer {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .offer-body {
+    gap: 4px;
   }
 }
 </style>

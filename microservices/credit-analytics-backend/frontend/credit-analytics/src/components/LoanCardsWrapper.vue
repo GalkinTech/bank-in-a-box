@@ -4,30 +4,6 @@
     :class="{ 'loans-section--carousel': isMobile }"
   >
     <div
-      v-if="isMobile && loans.length > 1"
-      class="loans-carousel-controls"
-    >
-      <button
-        class="carousel-btn carousel-btn--prev"
-        type="button"
-        :disabled="isPrevDisabled"
-        @click="$emit('prev-loan')"
-        aria-label="Предыдущий кредит"
-      >
-        ‹
-      </button>
-      <button
-        class="carousel-btn carousel-btn--next"
-        type="button"
-        :disabled="isNextDisabled"
-        @click="$emit('next-loan')"
-        aria-label="Следующий кредит"
-      >
-        ›
-      </button>
-    </div>
-
-    <div
       :ref="loansTrackRef"
       class="loans-grid"
       :class="{ 'loans-grid--carousel': isMobile }"
@@ -50,18 +26,44 @@
 
     <div
       v-if="isMobile && loans.length > 1"
-      class="carousel-dots"
-      role="tablist"
+      class="carousel-navigation"
+      role="group"
+      aria-label="Навигация по кредитам"
     >
       <button
-        v-for="(loan, index) in loans"
-        :key="`dot-${loan.agreement_id}`"
+        class="carousel-btn carousel-btn--prev"
         type="button"
-        class="carousel-dot"
-        :class="{ active: index === currentSlide }"
-        @click="$emit('go-to-loan', index)"
-        :aria-label="`Показать кредит ${index + 1}`"
-      ></button>
+        :disabled="isPrevDisabled"
+        @click="$emit('prev-loan')"
+        aria-label="Предыдущий кредит"
+      >
+        ‹
+      </button>
+
+      <div
+        class="carousel-dots"
+        role="tablist"
+      >
+        <button
+          v-for="(loan, index) in loans"
+          :key="`dot-${loan.agreement_id}`"
+          type="button"
+          class="carousel-dot"
+          :class="{ active: index === currentSlide }"
+          @click="$emit('go-to-loan', index)"
+          :aria-label="`Показать кредит ${index + 1}`"
+        ></button>
+      </div>
+
+      <button
+        class="carousel-btn carousel-btn--next"
+        type="button"
+        :disabled="isNextDisabled"
+        @click="$emit('next-loan')"
+        aria-label="Следующий кредит"
+      >
+        ›
+      </button>
     </div>
   </div>
 </template>
@@ -144,28 +146,30 @@ void emit;
   gap: 16px;
 }
 
-.loans-carousel-controls {
+
+.carousel-navigation {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
   gap: 12px;
+  margin-top: 10px;
 }
 
 .carousel-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   border: none;
   background: rgba(92, 108, 255, 0.12);
   color: #3a4dff;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 6px 12px rgba(74, 91, 255, 0.15);
+  box-shadow: 0 4px 10px rgba(74, 91, 255, 0.15);
 }
 
 .carousel-btn:disabled {

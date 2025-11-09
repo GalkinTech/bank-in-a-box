@@ -1536,9 +1536,11 @@
         
         const apiBase = window.location.origin;
 
-        const FIXED_REFINANCE_HEIGHT = 1300;
         const MOBILE_BREAKPOINT = 768;
         const DEFAULT_DESKTOP_HEIGHT = 520;
+        const MOBILE_WIDGET_MIN_HEIGHT = 720;
+        const MOBILE_WIDGET_MAX_HEIGHT = 1100;
+        const MOBILE_WIDGET_DEFAULT_HEIGHT = 900;
         const refinanceFrame = document.getElementById('refinanceFrame');
         const REFINANCE_TOKEN_STORAGE_KEY = 'creditAnalyticsToken';
         let lastRefinanceHeight = 0;
@@ -1897,10 +1899,18 @@
             }
 
             if (mobile) {
-                finalHeight = FIXED_REFINANCE_HEIGHT;
-                refinanceFrame.style.height = `${FIXED_REFINANCE_HEIGHT}px`;
-                refinanceFrame.style.minHeight = `${FIXED_REFINANCE_HEIGHT}px`;
-                refinanceFrame.style.maxHeight = `${FIXED_REFINANCE_HEIGHT}px`;
+                const mobileHeightSource = rawHeight
+                    ? requestedHeight
+                    : lastRefinanceHeight || MOBILE_WIDGET_DEFAULT_HEIGHT;
+                const clampedMobileHeight = Math.min(
+                    Math.max(mobileHeightSource || MOBILE_WIDGET_DEFAULT_HEIGHT, MOBILE_WIDGET_MIN_HEIGHT),
+                    MOBILE_WIDGET_MAX_HEIGHT
+                );
+
+                finalHeight = clampedMobileHeight;
+                refinanceFrame.style.height = `${clampedMobileHeight}px`;
+                refinanceFrame.style.minHeight = `${MOBILE_WIDGET_MIN_HEIGHT}px`;
+                refinanceFrame.style.maxHeight = `${MOBILE_WIDGET_MAX_HEIGHT}px`;
             } else {
                 refinanceFrame.style.height = `${finalHeight}px`;
                 refinanceFrame.style.minHeight = '';
