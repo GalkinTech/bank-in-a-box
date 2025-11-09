@@ -408,6 +408,14 @@ router.get('/suggestions', async (req, res) => {
 });
 
 router.post('/applications', async (req, res) => {
+  const forceReal =
+    config.forceRealRefinanceApplications
+    || req.query?.force_real === 'true'
+    || req.query?.forceReal === 'true'
+    || req.body?.force_real === true
+    || req.body?.force_real === 'true'
+    || req.headers['x-force-real'] === 'true';
+
   try {
     const {
       agreement_id: agreementId,
@@ -423,7 +431,7 @@ router.post('/applications', async (req, res) => {
       return;
     }
 
-    if (config.useMockData) {
+    if (config.useMockData && !forceReal) {
       const amountValue = toNumber(providedAmount, 500000);
       res.status(201).json({
         status: 'mock-submitted',

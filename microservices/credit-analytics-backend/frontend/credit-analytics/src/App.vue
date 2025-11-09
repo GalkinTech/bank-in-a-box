@@ -871,9 +871,16 @@ const submitApplication = async (options = {}) => {
   };
 
   try {
-    const response = await fetchJson('/api/refinance/applications', {
+    const endpoint = '/api/refinance/applications?force_real=true';
+    const response = await fetchJson(endpoint, {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        force_real: true,
+      }),
+      headers: {
+        'X-Force-Real': 'true',
+      },
     });
 
     state.submissionSuccess = true;

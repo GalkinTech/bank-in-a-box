@@ -1756,6 +1756,12 @@
                     comment: refinanceModal.comment.value || undefined,
                 };
 
+                console.info('[refinance][parent-ui] Отправляем заявку', {
+                    agreementId: loan?.agreementId,
+                    loan,
+                    payload: submissionPayload,
+                });
+
                 setModalSubmittingState(true);
                 sendMessageToIframe('REFINANCE_APPLICATION_MODAL_SUBMIT', submissionPayload);
             });
