@@ -4,7 +4,7 @@ OpenBanking Russia Products API v1.3
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from database import get_db
 from models import Product
@@ -25,7 +25,8 @@ async def get_products(
     query = select(Product).where(Product.is_active == True)
     
     if product_type:
-        query = query.where(Product.product_type == product_type)
+        normalized_type = product_type.lower()
+        query = query.where(func.lower(Product.product_type) == normalized_type)
     
     result = await db.execute(query)
     products = result.scalars().all()

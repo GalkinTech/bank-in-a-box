@@ -367,6 +367,86 @@
             document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
         });
 
+        // Delete product helpers
+        let deleteModal;
+        let deleteProductId = null;
+
+        function ensureDeleteModal() {
+            if (deleteModal) {
+                return deleteModal;
+            }
+
+            deleteModal = document.createElement('div');
+            deleteModal.className = 'modal';
+            deleteModal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Удалить продукт</h2>
+                    </div>
+                    <p id="deleteProductName" style="margin-bottom: 20px; color: var(--text-primary);"></p>
+                    <p style="color: var(--text-secondary); font-size: 14px;">
+                        Это действие нельзя отменить. Продукт будет удалён из каталога, если не привязан к активным договорам.
+                    </p>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="deleteCancelBtn">Отмена</button>
+                        <button type="button" class="btn btn-primary" id="deleteConfirmBtn" style="background: #dc2626;">Удалить</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(deleteModal);
+            deleteModal.querySelector('#deleteCancelBtn').addEventListener('click', closeDeleteModal);
+            deleteModal.querySelector('#deleteConfirmBtn').addEventListener('click', deleteProductConfirmed);
+            return deleteModal;
+        }
+
+        window.confirmDeleteProduct = function(productId, productName) {
+            deleteProductId = productId;
+            const modal = ensureDeleteModal();
+            modal.querySelector('#deleteProductName').textContent = `Вы уверены, что хотите удалить продукт «${productName}»?`;
+            modal.classList.add('active');
+        };
+
+        function closeDeleteModal() {
+            if (!deleteModal) {
+                return;
+            }
+            deleteModal.classList.remove('active');
+            deleteProductId = null;
+        }
+
+        async function deleteProductConfirmed() {
+            if (!deleteProductId) {
+                return;
+            }
+
+            try {
+                const baseUrl = getBaseUrl();
+                const response = await fetch(`${baseUrl}/banker/products/${deleteProductId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (response.status === 409) {
+                    const detail = await response.text();
+                    alert(detail || 'Нельзя удалить продукт: есть активные договоры');
+                    return;
+                }
+
+                if (!response.ok) {
+                    const detail = await response.text();
+                    throw new Error(detail || 'Ошибка удаления продукта');
+                }
+
+                closeDeleteModal();
+                await loadProducts();
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        }
+
         // Update theme icon on load
         const isDark = localStorage.getItem('theme') === 'dark';
         document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
@@ -397,7 +477,8 @@
                 }
 
                 const data = await response.json();
-                renderProducts(data.products);
+                currentProducts = Array.isArray(data.products) ? data.products : [];
+                renderProducts(currentProducts);
             } catch (error) {
                 console.error('Error loading products:', error);
                 document.getElementById('productsGrid').innerHTML = 
@@ -456,6 +537,9 @@
                         <div class="product-actions">
                             <button class="btn btn-primary" onclick="editProduct('${product.product_id}')">
                                 ✏️ Редактировать
+                            </button>
+                            <button class="btn btn-secondary" onclick="confirmDeleteProduct('${product.product_id}', '${product.name.replace(/'/g, "&#39;")}')">
+                                🗑️ Удалить
                             </button>
                         </div>
                     </div>

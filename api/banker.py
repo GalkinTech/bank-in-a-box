@@ -120,6 +120,27 @@ async def create_product(
     return {"product_id": product.product_id, "status": "created"}
 
 
+@router.delete("/products/{product_id}")
+async def delete_product(product_id: str, db: AsyncSession = Depends(get_db)):
+    """Удалить продукт"""
+    result = await db.execute(select(Product).where(Product.product_id == product_id))
+    product = result.scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    bindings_result = await db.execute(
+        select(func.count(ProductAgreement.id)).where(ProductAgreement.product_id == product.id)
+    )
+    if (bindings_result.scalar() or 0) > 0:
+        raise HTTPException(409, "Product has active agreements")
+
+    await db.delete(product)
+    await db.commit()
+
+    return {"status": "deleted", "product_id": product_id}
+
+
 # === Consent Management ===
 
 @router.get("/consents/all")
