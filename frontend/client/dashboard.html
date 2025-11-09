@@ -397,7 +397,8 @@
             gap: 24px;
             box-shadow: 0 30px 80px rgba(15, 23, 42, 0.25);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .refinance-modal__close {
@@ -435,6 +436,8 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             gap: 20px;
+            position: relative;
+            z-index: 1;
         }
 
         .refinance-modal__panel {
@@ -508,6 +511,58 @@
             display: inline-block;
             margin-left: 8px;
             vertical-align: middle;
+        }
+
+        .refinance-modal__submitting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .refinance-modal__submitting.hidden {
+            display: none;
+        }
+
+        .refinance-modal__spinner {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid rgba(74, 91, 255, 0.2);
+            border-top-color: #4a5bff;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .refinance-modal__content.is-disabled {
+            pointer-events: none;
+            opacity: 0.45;
+            filter: saturate(0.8);
+        }
+
+        .refinance-modal__overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(15, 23, 42, 0.25);
+            backdrop-filter: blur(2px);
+            z-index: 10;
+        }
+
+        .refinance-modal__overlay.hidden {
+            display: none;
+        }
+
+        .refinance-modal__overlay-spinner {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            border-top-color: var(--accent-color, #4a5bff);
+            animation: spin 0.7s linear infinite;
         }
 
         @keyframes spin {
@@ -1211,6 +1266,15 @@
                 <p class="refinance-modal__subtitle" id="refinanceModalSubtitle"></p>
             </header>
 
+            <div id="refinanceModalSubmitting" class="refinance-modal__submitting hidden">
+                <div class="refinance-modal__spinner"></div>
+                <p>Отправляем заявку...</p>
+            </div>
+
+            <div id="refinanceModalOverlay" class="refinance-modal__overlay hidden">
+                <div class="refinance-modal__overlay-spinner"></div>
+            </div>
+
             <div class="refinance-modal__content">
                 <section class="refinance-modal__panel">
                     <h3>Текущие условия</h3>
@@ -1238,7 +1302,6 @@
                 <div id="refinanceModalError" class="refinance-modal__alert hidden"></div>
 
                 <div class="refinance-modal__actions">
-                    <button type="button" class="btn btn-secondary" data-action="close">Отмена</button>
                     <button type="submit" class="btn btn-primary" id="refinanceModalSubmit">
                         Отправить заявку
                     </button>
@@ -1498,11 +1561,15 @@
             form: document.getElementById('refinanceModalForm'),
             submit: document.getElementById('refinanceModalSubmit'),
             error: document.getElementById('refinanceModalError'),
+            submitting: document.getElementById('refinanceModalSubmitting'),
+            content: null,
+            overlay: document.getElementById('refinanceModalOverlay'),
         };
 
         if (refinanceModal.root) {
             refinanceModal.backdrop = refinanceModal.root.querySelector('.refinance-modal__backdrop');
             refinanceModal.container = refinanceModal.root.querySelector('.refinance-modal__container');
+            refinanceModal.content = refinanceModal.root.querySelector('.refinance-modal__content');
         }
 
         const formatModalTerm = (value) => {
@@ -1567,6 +1634,24 @@
             refinanceModal.error.textContent = '';
             refinanceModal.error.classList.add('hidden');
             refinanceModal.offerPanel.classList.add('hidden');
+
+            if (refinanceModal.submitting) {
+                refinanceModal.submitting.classList.add('hidden');
+            }
+
+            if (refinanceModal.content) {
+                refinanceModal.content.classList.remove('is-disabled');
+            }
+
+            if (refinanceModal.overlay) {
+                refinanceModal.overlay.classList.add('hidden');
+            }
+
+            if (refinanceModal.submit) {
+                refinanceModal.submit.disabled = false;
+                refinanceModal.submit.classList.remove('loading');
+                refinanceModal.submit.textContent = 'Отправить заявку';
+            }
         };
 
         const fillDefinitionList = (target, items) => {
@@ -1720,6 +1805,19 @@
             }
             refinanceModal.submit.disabled = isSubmitting;
             refinanceModal.submit.classList.toggle('loading', isSubmitting);
+            refinanceModal.submit.textContent = isSubmitting ? 'Отправляем...' : 'Отправить заявку';
+
+            if (refinanceModal.submitting) {
+                refinanceModal.submitting.classList.toggle('hidden', !isSubmitting);
+            }
+
+            if (refinanceModal.content) {
+                refinanceModal.content.classList.toggle('is-disabled', isSubmitting);
+            }
+
+            if (refinanceModal.overlay) {
+                refinanceModal.overlay.classList.toggle('hidden', !isSubmitting);
+            }
         };
 
         const showModalError = (message) => {
@@ -2073,6 +2171,16 @@
             grid.classList.remove('hidden');
             grid.innerHTML = '';
 
+            const accountTypeLabels = {
+                checking: 'Расчётный счёт',
+                current: 'Текущий счёт',
+                savings: 'Накопительный счёт',
+                loan: 'Кредитный счёт',
+                credit: 'Кредитный счёт',
+                deposit: 'Депозитный счёт',
+                card: 'Карточный счёт'
+            };
+
             for (const account of accounts) {
                 // Get balance
                 const balanceResponse = await fetch(`${apiBase}/accounts/${account.accountId}/balances`, {
@@ -2087,14 +2195,20 @@
                 // Get transactions
                 const transactions = await loadTransactions(account.accountId);
 
+                const subtypeKey = typeof account.accountSubType === 'string'
+                    ? account.accountSubType.toLowerCase()
+                    : '';
+                const displayAccountType = accountTypeLabels[subtypeKey]
+                    || (account.accountSubType ? account.accountSubType : 'Счёт');
+
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
                     <div class="card-header">
                         <div>
-                            <div class="card-title">${account.accountSubType}</div>
+                            <div class="card-title">${displayAccountType}</div>
                             <div class="card-subtitle">${account.account[0].identification}</div>
-                    </div>
+                        </div>
                         <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); closeAccount('${account.accountId}', '${account.account[0].identification}')">
                             Закрыть
                         </button>
@@ -2136,16 +2250,42 @@
         // Product Agreements
         let availableProducts = [];
 
+        async function ensureProductCatalog() {
+            if (availableProducts.length) {
+                return;
+            }
+
+            try {
+                const catalogResponse = await fetch(`${apiBase}/products`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!catalogResponse.ok) {
+                    throw new Error('Failed to load products');
+                }
+
+                const catalogData = await catalogResponse.json();
+                availableProducts = catalogData.data?.product ?? [];
+            } catch (catalogError) {
+                console.warn('[dashboard] Failed to load product catalog for normalization', catalogError);
+            }
+        }
+
         async function loadProductAgreements() {
             try {
                 const response = await fetch(`${apiBase}/product-agreements`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                if (!response.ok) throw new Error('Failed to load agreements');
+                if (!response.ok) {
+                    throw new Error('Failed to load agreements');
+                }
 
                 const data = await response.json();
                 productsData = data.data;
+
+                await ensureProductCatalog();
+
                 displayProductAgreements(productsData);
                 updateSummary();
             } catch (error) {
@@ -2171,18 +2311,42 @@
             empty.classList.add('hidden');
             container.classList.remove('hidden');
 
-            const typeEmojis = { 'deposit': '💰', 'loan': '💳', 'card': '💳' };
-            const typeLabels = { 'deposit': 'Депозит', 'loan': 'Кредит', 'card': 'Карта' };
+            const typeEmojis = { deposit: '💰', loan: '💳', card: '💳', default: '🏦' };
+            const typeLabels = { deposit: 'Депозит', loan: 'Кредит', card: 'Карта', default: 'Продукт банка' };
+
+            const catalogById = new Map(availableProducts.map(p => [p.productId, p]));
 
             container.innerHTML = agreements.map(agr => {
+                const rawType = typeof agr.product_type === 'string' ? agr.product_type.toLowerCase() : '';
+                let normalizedType = 'default';
+                if (rawType.includes('deposit')) {
+                    normalizedType = 'deposit';
+                } else if (rawType.includes('card')) {
+                    normalizedType = 'card';
+                } else if (rawType.includes('loan')) {
+                    normalizedType = 'loan';
+                }
+
+                const productFromCatalog = catalogById.get(agr.product_id);
+
+                let displayName = agr.product_name;
+                if (!displayName || displayName.toLowerCase() === 'ещё кредит') {
+                    displayName = productFromCatalog?.productName
+                        || (normalizedType === 'loan' ? 'Кредит' : typeLabels[normalizedType])
+                        || typeLabels.default;
+                }
+
+                const displayTypeLabel = typeLabels[normalizedType] || typeLabels.default;
+                const displayEmoji = typeEmojis[normalizedType] || typeEmojis.default;
+
                 const daysTotal = agr.end_date ? Math.floor((new Date(agr.end_date) - new Date(agr.start_date)) / (1000 * 60 * 60 * 24)) : 365;
                 const daysPassed = Math.floor((new Date() - new Date(agr.start_date)) / (1000 * 60 * 60 * 24));
                 const progress = Math.min((daysPassed / daysTotal) * 100, 100);
 
                 return `
                     <div class="product-card">
-                        <span class="product-badge ${agr.product_type}">${typeLabels[agr.product_type] || agr.product_type}</span>
-                        <div class="product-name">${typeEmojis[agr.product_type]} ${agr.product_name}</div>
+                        <span class="product-badge ${normalizedType}">${displayTypeLabel}</span>
+                        <div class="product-name">${displayEmoji} ${displayName}</div>
                         <div class="product-amount">${agr.amount.toLocaleString('ru-RU')} ₽</div>
                         ${agr.account_number ? `<div style="font-size: 12px; color: var(--text-muted); font-family: monospace; margin-bottom: var(--spacing-sm);">Счет: ${agr.account_number}</div>` : ''}
                         ${agr.end_date ? `
