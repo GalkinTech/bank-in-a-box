@@ -364,6 +364,179 @@
             font-size: 13px;
         }
 
+        /* Global refinance modal */
+        .refinance-modal {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .refinance-modal.hidden {
+            display: none;
+        }
+
+        .refinance-modal__backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(4px);
+        }
+
+        .refinance-modal__container {
+            position: relative;
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: clamp(24px, 5vw, 36px);
+            width: min(880px, 92vw);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            box-shadow: 0 30px 80px rgba(15, 23, 42, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .refinance-modal__close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            background: none;
+            border: none;
+            font-size: 32px;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .refinance-modal__close:hover {
+            color: var(--text-primary);
+        }
+
+        .refinance-modal__header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .refinance-modal__header h2 {
+            font-size: clamp(24px, 3vw, 30px);
+        }
+
+        .refinance-modal__subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .refinance-modal__content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .refinance-modal__panel {
+            background: var(--bg-hover);
+            border-radius: 16px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .refinance-modal__panel h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .refinance-modal__list {
+            display: grid;
+            grid-template-columns: max-content 1fr;
+            column-gap: 16px;
+            row-gap: 10px;
+            font-size: 14px;
+        }
+
+        .refinance-modal__list dt {
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 12px;
+        }
+
+        .refinance-modal__list dd {
+            margin: 0;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .refinance-modal__list dd.savings {
+            color: var(--success-color);
+        }
+
+        .refinance-modal__form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .refinance-modal__alert {
+            background: rgba(231, 76, 60, 0.12);
+            border: 1px solid rgba(231, 76, 60, 0.35);
+            color: #e74c3c;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 14px;
+        }
+
+        .refinance-modal__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .refinance-modal__container .btn-primary.loading::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .refinance-modal__container {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+                padding: 24px;
+                justify-content: flex-start;
+            }
+
+            .refinance-modal__content {
+                grid-template-columns: 1fr;
+            }
+
+            .refinance-modal__actions {
+                flex-direction: column;
+            }
+
+            .refinance-modal__actions .btn {
+                width: 100%;
+            }
+        }
+
         /* Cards Grid */
         .cards-grid {
             display: grid;
@@ -1029,6 +1202,51 @@
         </section>
     </main>
 
+    <section id="refinanceGlobalModal" class="refinance-modal hidden" role="dialog" aria-modal="true" aria-labelledby="refinanceModalTitle">
+        <div class="refinance-modal__backdrop" data-action="close"></div>
+        <div class="refinance-modal__container">
+            <button class="refinance-modal__close" type="button" title="Закрыть" data-action="close">×</button>
+            <header class="refinance-modal__header">
+                <h2 id="refinanceModalTitle">Заявка на рефинансирование</h2>
+                <p class="refinance-modal__subtitle" id="refinanceModalSubtitle"></p>
+            </header>
+
+            <div class="refinance-modal__content">
+                <section class="refinance-modal__panel">
+                    <h3>Текущие условия</h3>
+                    <dl class="refinance-modal__list" id="refinanceCurrentTerms"></dl>
+                </section>
+
+                <section class="refinance-modal__panel" id="refinanceOfferPanel">
+                    <h3>Предложение банка</h3>
+                    <dl class="refinance-modal__list" id="refinanceOfferTerms"></dl>
+                </section>
+            </div>
+
+            <form id="refinanceModalForm" class="refinance-modal__form">
+                <div class="form-group">
+                    <label for="refinanceDesiredTerm" class="form-label">Желаемый срок (мес.)</label>
+                    <input type="number" id="refinanceDesiredTerm" class="form-input" min="6" step="1" placeholder="Например, 24">
+                    <span class="form-hint">Необязательно. Если хотите изменить срок кредита, укажите новое значение.</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="refinanceComment" class="form-label">Комментарий</label>
+                    <textarea id="refinanceComment" class="form-input" rows="3" placeholder="Уточните пожелания или дополнительную информацию"></textarea>
+                </div>
+
+                <div id="refinanceModalError" class="refinance-modal__alert hidden"></div>
+
+                <div class="refinance-modal__actions">
+                    <button type="button" class="btn btn-secondary" data-action="close">Отмена</button>
+                    <button type="submit" class="btn btn-primary" id="refinanceModalSubmit">
+                        Отправить заявку
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
     <!-- Bottom Navigation (Mobile) -->
     <nav class="bottom-nav">
         <div class="bottom-nav-items">
@@ -1258,6 +1476,291 @@
         const refinanceFrame = document.getElementById('refinanceFrame');
         const REFINANCE_TOKEN_STORAGE_KEY = 'creditAnalyticsToken';
         let lastRefinanceHeight = 0;
+        let activeRefinanceModal = null;
+        let refinanceModalState = {
+            loan: null,
+            defaults: {
+                desiredTermMonths: '',
+                comment: '',
+            }
+        };
+
+        const refinanceModal = {
+            root: document.getElementById('refinanceGlobalModal'),
+            backdrop: null,
+            container: null,
+            subtitle: document.getElementById('refinanceModalSubtitle'),
+            currentTerms: document.getElementById('refinanceCurrentTerms'),
+            offerPanel: document.getElementById('refinanceOfferPanel'),
+            offerTerms: document.getElementById('refinanceOfferTerms'),
+            desiredTerm: document.getElementById('refinanceDesiredTerm'),
+            comment: document.getElementById('refinanceComment'),
+            form: document.getElementById('refinanceModalForm'),
+            submit: document.getElementById('refinanceModalSubmit'),
+            error: document.getElementById('refinanceModalError'),
+        };
+
+        if (refinanceModal.root) {
+            refinanceModal.backdrop = refinanceModal.root.querySelector('.refinance-modal__backdrop');
+            refinanceModal.container = refinanceModal.root.querySelector('.refinance-modal__container');
+        }
+
+        const formatModalTerm = (value) => {
+            if (!value && value !== 0) {
+                return '—';
+            }
+            if (value < 12) {
+                return `${value} мес.`;
+            }
+            const years = Math.floor(value / 12);
+            const months = value % 12;
+            const words = years % 10 === 1 && years % 100 !== 11
+                ? 'год'
+                : years % 10 >= 2 && years % 10 <= 4 && (years % 100 < 10 || years % 100 >= 20)
+                    ? 'года'
+                    : 'лет';
+            return months
+                ? `${years} ${words} ${months} мес.`
+                : `${years} ${words}`;
+        };
+
+        const formatModalCurrency = (value) => {
+            if (value === null || value === undefined || value === '') {
+                return '—';
+            }
+            return Number(value).toLocaleString('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                maximumFractionDigits: 0,
+            });
+        };
+
+        const formatModalPercent = (value) => {
+            if (value === null || value === undefined || value === '') {
+                return '—';
+            }
+            return `${Number(value).toFixed(2)}%`;
+        };
+
+        const describeModalLoan = (loan) => {
+            if (!loan) {
+                return 'Кредит не выбран';
+            }
+            const parts = [];
+            if (loan.bankName) {
+                parts.push(loan.bankName);
+            }
+            if (loan.productName) {
+                parts.push(loan.productName);
+            }
+            if (loan.agreementId) {
+                parts.push(`№ ${loan.agreementId}`);
+            }
+            return parts.join(' • ');
+        };
+
+        const resetRefinanceModal = () => {
+            refinanceModal.currentTerms.innerHTML = '';
+            refinanceModal.offerTerms.innerHTML = '';
+            refinanceModal.desiredTerm.value = '';
+            refinanceModal.comment.value = '';
+            refinanceModal.error.textContent = '';
+            refinanceModal.error.classList.add('hidden');
+            refinanceModal.offerPanel.classList.add('hidden');
+        };
+
+        const fillDefinitionList = (target, items) => {
+            target.innerHTML = '';
+            items
+                .filter(Boolean)
+                .forEach(({ label, value, valueClass }) => {
+                    const dt = document.createElement('dt');
+                    dt.textContent = label;
+                    const dd = document.createElement('dd');
+                    dd.textContent = value;
+                    if (valueClass) {
+                        dd.classList.add(valueClass);
+                    }
+                    target.appendChild(dt);
+                    target.appendChild(dd);
+                });
+        };
+
+        const openRefinanceModal = (payload) => {
+            if (!refinanceModal.root) {
+                return;
+            }
+
+            resetRefinanceModal();
+            refinanceModalState = payload;
+            const loan = payload?.loan ?? null;
+            const defaults = payload?.defaults ?? {};
+
+            refinanceModal.subtitle.textContent = describeModalLoan(loan);
+
+            const currentItems = [
+                loan?.currentRate !== undefined && loan?.currentRate !== null
+                    ? { label: 'Ставка', value: formatModalPercent(loan.currentRate) }
+                    : null,
+                loan?.currentMonthlyPayment !== undefined && loan?.currentMonthlyPayment !== null
+                    ? {
+                        label: 'Ежемесячный платёж',
+                        value: formatModalCurrency(loan.currentMonthlyPayment),
+                    }
+                    : null,
+                loan?.outstandingBalance !== undefined && loan?.outstandingBalance !== null
+                    ? {
+                        label: 'Остаток задолженности',
+                        value: formatModalCurrency(loan.outstandingBalance),
+                    }
+                    : null,
+                loan?.loanTermMonths
+                    ? {
+                        label: 'Оставшийся срок',
+                        value: formatModalTerm(loan.loanTermMonths),
+                    }
+                    : null,
+            ];
+            fillDefinitionList(refinanceModal.currentTerms, currentItems);
+
+            if (loan?.offer) {
+                const offerItems = [
+                    loan.offer.suggestedRate !== undefined && loan.offer.suggestedRate !== null
+                        ? {
+                            label: 'Ставка',
+                            value: formatModalPercent(loan.offer.suggestedRate),
+                        }
+                        : null,
+                    loan.offer.monthlyPayment !== undefined && loan.offer.monthlyPayment !== null
+                        ? {
+                            label: 'Платёж',
+                            value: formatModalCurrency(loan.offer.monthlyPayment),
+                        }
+                        : null,
+                    loan.offer.savings !== undefined && loan.offer.savings !== null
+                        ? {
+                            label: 'Экономия',
+                            value: formatModalCurrency(loan.offer.savings),
+                            valueClass: 'savings',
+                        }
+                        : null,
+                    loan.offer.description
+                        ? {
+                            label: 'Комментарий',
+                            value: loan.offer.description,
+                        }
+                        : null,
+                ];
+                fillDefinitionList(refinanceModal.offerTerms, offerItems);
+                refinanceModal.offerPanel.classList.remove('hidden');
+            }
+
+            refinanceModal.desiredTerm.value = defaults.desiredTermMonths || '';
+            refinanceModal.comment.value = defaults.comment || '';
+
+            refinanceModal.root.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            activeRefinanceModal = loan;
+            sendMessageToIframe('REFINANCE_APPLICATION_MODAL_OPENED');
+        };
+
+        const closeRefinanceModal = ({ reason = 'user-close', notifyIframe = true, notifyWidget = true, submitResult } = {}) => {
+            if (!refinanceModal.root || refinanceModal.root.classList.contains('hidden')) {
+                return;
+            }
+
+            refinanceModal.root.classList.add('hidden');
+            document.body.style.overflow = '';
+            resetRefinanceModal();
+
+            if (notifyWidget) {
+                sendMessageToIframe('REFINANCE_APPLICATION_MODAL_CLOSED', {
+                    reason,
+                });
+            }
+
+            if (notifyIframe) {
+                sendMessageToIframe('REFINANCE_MODAL_PARENT_CLOSED', {
+                    reason,
+                });
+            }
+
+            if (submitResult) {
+                if (submitResult.status === 'success') {
+                    showToast('Заявка на рефинансирование отправлена.', 'success', '🔁 Рефинансирование');
+                } else if (submitResult.status === 'error') {
+                    showToast(submitResult.message || 'Не удалось отправить заявку', 'error', '🔁 Рефинансирование');
+                }
+            }
+
+            activeRefinanceModal = null;
+        };
+
+        const sendMessageToIframe = (type, payload) => {
+            if (!refinanceFrame?.contentWindow) {
+                return;
+            }
+            refinanceFrame.contentWindow.postMessage({ type, payload }, '*');
+        };
+
+        const handleRefinanceModalEvent = (event) => {
+            const action = event.target?.dataset?.action;
+            if (!action) {
+                return;
+            }
+
+            if (action === 'close') {
+                closeRefinanceModal({ reason: 'user-close' });
+            }
+        };
+
+        const setModalSubmittingState = (isSubmitting) => {
+            if (!refinanceModal.submit) {
+                return;
+            }
+            refinanceModal.submit.disabled = isSubmitting;
+            refinanceModal.submit.classList.toggle('loading', isSubmitting);
+        };
+
+        const showModalError = (message) => {
+            if (!refinanceModal.error) {
+                return;
+            }
+            refinanceModal.error.textContent = message;
+            refinanceModal.error.classList.remove('hidden');
+        };
+
+        const clearModalError = () => {
+            if (!refinanceModal.error) {
+                return;
+            }
+            refinanceModal.error.textContent = '';
+            refinanceModal.error.classList.add('hidden');
+        };
+
+        if (refinanceModal.root) {
+            refinanceModal.root.addEventListener('click', handleRefinanceModalEvent);
+            refinanceModal.form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                clearModalError();
+                const loan = refinanceModalState.loan;
+                if (!loan) {
+                    showModalError('Не удалось определить кредит для заявки.');
+                    return;
+                }
+
+                const submissionPayload = {
+                    desired_term_months: refinanceModal.desiredTerm.value
+                        ? Number(refinanceModal.desiredTerm.value)
+                        : undefined,
+                    comment: refinanceModal.comment.value || undefined,
+                };
+
+                setModalSubmittingState(true);
+                sendMessageToIframe('REFINANCE_APPLICATION_MODAL_SUBMIT', submissionPayload);
+            });
+        }
+
 
         const isMobileViewport = () => window.innerWidth <= MOBILE_BREAKPOINT;
 
@@ -1439,6 +1942,37 @@
                 // Обновляем данные, чтобы отразить новые предложения или состояние договоров
                 loadProductAgreements();
                 loadAccounts();
+            }
+
+            if (type === 'OPEN_REFINANCE_APPLICATION_MODAL') {
+                openRefinanceModal(payload);
+                return;
+            }
+
+            if (type === 'REFINANCE_APPLICATION_MODAL_SUBMIT') {
+                setModalSubmittingState(true);
+                return;
+            }
+
+            if (type === 'REFINANCE_APPLICATION_RESULT') {
+                setModalSubmittingState(false);
+                if (payload?.status === 'success') {
+                    closeRefinanceModal({
+                        reason: 'submit-success',
+                        notifyWidget: false,
+                        submitResult: payload,
+                    });
+                    loadProductAgreements();
+                    loadAccounts();
+                } else if (payload?.status === 'error') {
+                    showModalError(payload.message || 'Не удалось отправить заявку. Попробуйте позже.');
+                }
+                return;
+            }
+
+            if (type === 'CLOSE_REFINANCE_APPLICATION_MODAL') {
+                closeRefinanceModal({ reason: payload?.reason || 'widget-close', notifyWidget: false });
+                return;
             }
         });
 

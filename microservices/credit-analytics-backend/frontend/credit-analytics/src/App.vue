@@ -101,6 +101,7 @@ const state = reactive({
   isSubmitting: false,
   submissionError: null,
   submissionSuccess: false,
+  parentModalActive: false,
 });
 
 const authToken = ref(null);
@@ -118,6 +119,70 @@ const currentSlide = ref(0);
 const isMobile = ref(false);
 let trackScrollHandler = null;
 const TOKEN_STORAGE_KEY = 'creditAnalyticsToken';
+
+const sendToParent = (type, payload) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (!window.parent || window.parent === window) {
+    return;
+  }
+  window.parent.postMessage(
+    {
+      type,
+      payload,
+    },
+    '*'
+  );
+};
+
+const buildParentModalPayload = (loan) => {
+  if (!loan) {
+    return null;
+  }
+
+  const offer = loan.offer || null;
+
+  const formattedOffer = offer
+    ? {
+        suggestedRate: offer.suggested_rate ?? offer.rate ?? null,
+        suggestedRateFormatted: formatPercent(offer.suggested_rate ?? offer.rate),
+        monthlyPayment: offer.monthly_payment ?? offer.monthlyPayment ?? null,
+        monthlyPaymentFormatted: formatCurrency(
+          offer.monthly_payment ?? offer.monthlyPayment
+        ),
+        savings: loan.offerSavings ?? offer.savings ?? null,
+        savingsFormatted: formatCurrency(loan.offerSavings ?? offer.savings),
+        description: offer.description ?? null,
+      }
+    : null;
+
+  return {
+    loan: {
+      agreementId: loan.agreement_id,
+      productName: loan.product_name || loan.productName || null,
+      originBank: loan.origin_bank || loan.source || null,
+      bankName: loan.bank_name || loan.origin_bank_name || null,
+      outstandingBalance: loan.outstandingBalance ?? null,
+      outstandingBalanceFormatted: formatCurrency(loan.outstandingBalance),
+      currentRate: loan.currentRate ?? null,
+      currentRateFormatted: formatPercent(loan.currentRate),
+      currentMonthlyPayment: loan.currentMonthlyPayment ?? null,
+      currentMonthlyPaymentFormatted: formatCurrency(loan.currentMonthlyPayment),
+      loanTermMonths: loan.remainingTermMonths ?? null,
+      loanTermFormatted: formatTerm(loan.remainingTermMonths),
+      offer: formattedOffer,
+      offerSavings: loan.offerSavings ?? formattedOffer?.savings ?? null,
+      offerSavingsFormatted:
+        formatCurrency(loan.offerSavings ?? formattedOffer?.savings ?? null),
+      accountNumber: loan.account_number || loan.accountNumber || null,
+    },
+    defaults: {
+      desiredTermMonths: '',
+      comment: '',
+    },
+  };
+};
 
 const ensureBearer = (token) => {
   if (!token) {
@@ -725,38 +790,71 @@ const infoCards = computed(() => [
 
 const openApplicationModal = (agreementId) => {
   state.selectedLoanId = agreementId;
-  state.applicationModalOpen = true;
   state.applicationForm.desiredTermMonths = '';
   state.applicationForm.comment = '';
   state.submissionError = null;
   state.submissionSuccess = false;
-};
 
-const closeApplicationModal = () => {
-  state.applicationModalOpen = false;
-  state.submissionError = null;
-  state.submissionSuccess = false;
-};
+  if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    nextTick(() => {
+      const loan = selectedLoan.value;
+      const payload = buildParentModalPayload(loan);
 
-const notifyParent = (payload) => {
-  if (window.parent && window.parent !== window) {
-    window.parent.postMessage(
-      {
-        type: 'REFINANCE_APPLICATION_SUBMITTED',
-        payload,
-      },
-      '*'
-    );
+      if (payload) {
+        sendToParent('OPEN_REFINANCE_APPLICATION_MODAL', payload);
+        state.parentModalActive = true;
+      } else {
+        state.applicationModalOpen = true;
+      }
+    });
+  } else {
+    state.applicationModalOpen = true;
   }
 };
 
-const submitApplication = async () => {
+const closeApplicationModal = () => {
+  closeApplicationModalInternal();
+};
+
+const closeApplicationModalInternal = (options = {}) => {
+  const { notifyParent = true } = options;
+
+  if (state.parentModalActive && notifyParent) {
+    sendToParent('CLOSE_REFINANCE_APPLICATION_MODAL', {
+      reason: options.reason || 'iframe-close',
+    });
+  }
+
+  state.applicationModalOpen = false;
+  state.submissionError = null;
+  state.submissionSuccess = false;
+  state.parentModalActive = false;
+};
+
+const notifyParent = (payload) => {
+  sendToParent('REFINANCE_APPLICATION_SUBMITTED', payload);
+};
+
+const submitApplication = async (options = {}) => {
+  const triggeredByParent = options.trigger === 'parent';
   if (!selectedLoan.value) {
+    if (triggeredByParent) {
+      sendToParent('REFINANCE_APPLICATION_RESULT', {
+        status: 'error',
+        message: 'Кредит не выбран',
+      });
+    }
     return;
   }
 
   state.isSubmitting = true;
   state.submissionError = null;
+
+  if (triggeredByParent) {
+    sendToParent('REFINANCE_APPLICATION_RESULT', {
+      status: 'submitting',
+    });
+  }
 
   const payload = {
     agreement_id: selectedLoan.value.agreement_id,
@@ -766,6 +864,12 @@ const submitApplication = async () => {
     comment: state.applicationForm.comment || undefined,
   };
 
+  let submissionOutcome = {
+    status: 'success',
+    responseStatus: 'submitted',
+    errorMessage: null,
+  };
+
   try {
     const response = await fetchJson('/api/refinance/applications', {
       method: 'POST',
@@ -773,26 +877,48 @@ const submitApplication = async () => {
     });
 
     state.submissionSuccess = true;
+    submissionOutcome.responseStatus = response?.status || 'submitted';
     notifyParent({
       agreementId: selectedLoan.value.agreement_id,
-      status: response?.status || 'submitted',
+      status: submissionOutcome.responseStatus,
       payload,
     });
   } catch (error) {
     if (error.status === 404) {
       console.warn('Endpoint /api/refinance/applications отсутствует. Используем мок-ответ.');
       state.submissionSuccess = true;
+      submissionOutcome.responseStatus = 'mock-submitted';
       notifyParent({
         agreementId: selectedLoan.value.agreement_id,
         status: 'mock-submitted',
         payload,
       });
     } else {
-      state.submissionError = describeError(error, 'Не удалось отправить заявку. Попробуйте позже.');
+      submissionOutcome.status = 'error';
+      state.submissionError = describeError(
+        error,
+        'Не удалось отправить заявку. Попробуйте позже.'
+      );
+      submissionOutcome.errorMessage = state.submissionError;
     }
   } finally {
     state.isSubmitting = false;
     scheduleHeightUpdate();
+  }
+
+  if (triggeredByParent) {
+    if (submissionOutcome.status === 'success') {
+      sendToParent('REFINANCE_APPLICATION_RESULT', {
+        status: 'success',
+        agreementId: selectedLoan.value?.agreement_id,
+        responseStatus: submissionOutcome.responseStatus,
+      });
+    } else {
+      sendToParent('REFINANCE_APPLICATION_RESULT', {
+        status: 'error',
+        message: submissionOutcome.errorMessage,
+      });
+    }
   }
 };
 
@@ -820,6 +946,18 @@ const handleMessage = (event) => {
 
   if (data.type === 'REFRESH_REFINANCE_WIDGET') {
     refreshAll();
+  }
+
+  if (data.type === 'REFINANCE_APPLICATION_MODAL_SUBMIT') {
+    state.parentModalActive = true;
+    state.applicationForm.desiredTermMonths =
+      data.payload?.desired_term_months ?? '';
+    state.applicationForm.comment = data.payload?.comment ?? '';
+    submitApplication({ trigger: 'parent' });
+  }
+
+  if (data.type === 'REFINANCE_APPLICATION_MODAL_CLOSED') {
+    closeApplicationModalInternal({ notifyParent: false, reason: 'parent-close' });
   }
 };
 
