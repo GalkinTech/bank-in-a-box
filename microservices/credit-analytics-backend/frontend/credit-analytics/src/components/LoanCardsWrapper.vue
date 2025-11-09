@@ -40,8 +40,11 @@
         :format-percent="formatPercent"
         :format-term="formatTerm"
         :selected="loan.agreement_id === selectedLoanId"
+        :allow-multi-select="allowMultiSelect"
+        :multi-selected="multiSelectedIds.includes(loan.agreement_id)"
         @select="() => $emit('select-loan', loan.agreement_id, index)"
         @open-application="() => $emit('open-application', loan.agreement_id)"
+        @toggle-multi="() => $emit('toggle-multi', loan.agreement_id)"
       />
     </div>
 
@@ -107,6 +110,14 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  allowMultiSelect: {
+    type: Boolean,
+    default: false,
+  },
+  multiSelectedIds: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits([
@@ -115,6 +126,7 @@ const emit = defineEmits([
   'prev-loan',
   'go-to-loan',
   'open-application',
+  'toggle-multi',
 ]);
 
 void props;

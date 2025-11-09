@@ -31,11 +31,14 @@
       :format-currency="formatCurrency"
       :format-percent="formatPercent"
       :format-term="formatTerm"
+      :allow-multi-select="allowMultiSelect"
+      :multi-selected-ids="multiSelectedIds"
       @select-loan="(agreementId, index) => $emit('select-loan', agreementId, index)"
       @next-loan="$emit('next-loan')"
       @prev-loan="$emit('prev-loan')"
       @go-to-loan="$emit('go-to-loan', $event)"
       @open-application="$emit('open-application', $event)"
+      @toggle-multi="$emit('toggle-multi', $event)"
     />
   </section>
 </template>
@@ -103,9 +106,17 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  allowMultiSelect: {
+    type: Boolean,
+    default: false,
+  },
+  multiSelectedIds: {
+    type: Array,
+    default: () => [],
+  },
 });
 
-const emit = defineEmits(['select-loan', 'next-loan', 'prev-loan', 'go-to-loan', 'open-application']);
+const emit = defineEmits(['select-loan', 'next-loan', 'prev-loan', 'go-to-loan', 'open-application', 'toggle-multi']);
 
 // Ensure props are used to avoid compile warnings
 void props;

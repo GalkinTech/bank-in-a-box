@@ -14,6 +14,50 @@
     </section>
 
     <section v-else class="content">
+      <div class="multi-actions-trigger" v-if="!state.multiSelectMode && externalLoans.length > 1 && !isMobile">
+        <button class="btn btn-secondary" type="button" @click="enableMultiSelect">
+          Выбрать несколько кредитов
+        </button>
+      </div>
+
+      <div class="multi-actions" v-if="state.multiSelectMode && !isMobile">
+        <div class="multi-summary">
+          <strong>Выбрано кредитов: {{ state.multiSelectedLoanIds.length }}</strong>
+          <span v-if="state.multiSelectedLoanIds.length">
+            {{ formatCurrency(sumSelectedBalances) }} общий остаток
+          </span>
+        </div>
+        <div class="multi-buttons">
+          <button
+            class="btn btn-secondary"
+            type="button"
+            @click="clearMultiSelection"
+            :disabled="!state.multiSelectedLoanIds.length || state.isMultiSubmitting"
+          >
+            Снять выбор
+          </button>
+          <button
+            class="btn btn-primary"
+            type="button"
+            @click="openBulkRefinance"
+            :disabled="state.multiSelectedLoanIds.length < 2 || state.isMultiSubmitting"
+          >
+            Оформить пакетную заявку
+          </button>
+        </div>
+        <div class="multi-status" v-if="state.isMultiSubmitting">
+          <span class="spinner"></span>
+          Формируем пакетную заявку...
+        </div>
+        <div
+          class="multi-result"
+          v-if="state.multiSubmissionResult"
+          :class="state.multiSubmissionResult.status"
+        >
+          {{ state.multiSubmissionResult.message }}
+        </div>
+      </div>
+
       <div
         v-if="externalIssues"
         class="status-alert"
@@ -47,12 +91,15 @@
         :format-currency="formatCurrency"
         :format-percent="formatPercent"
         :format-term="formatTerm"
+        :allow-multi-select="!isMobile"
+        :multi-selected-ids="state.multiSelectedLoanIds"
         @retry="refreshAll"
         @select-loan="selectLoan"
         @next-loan="nextLoan"
         @prev-loan="prevLoan"
         @go-to-loan="goToLoan"
         @open-application="openApplicationModal"
+        @toggle-multi="toggleMultiSelection"
       />
     </section>
 
@@ -102,6 +149,10 @@ const state = reactive({
   submissionError: null,
   submissionSuccess: false,
   parentModalActive: false,
+  multiSelectMode: false,
+  multiSelectedLoanIds: [],
+  isMultiSubmitting: false,
+  multiSubmissionResult: null,
 });
 
 const authToken = ref(null);
