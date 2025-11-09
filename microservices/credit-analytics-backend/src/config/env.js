@@ -68,6 +68,7 @@ export const config = {
   bankApiBaseUrl: process.env.BANK_API_BASE_URL ?? 'http://localhost:8080',
   bankApiTimeoutMs: Number(process.env.BANK_API_TIMEOUT_MS ?? 10000),
   useMockData: process.env.USE_MOCK_DATA === 'true',
+  useMockExternalBanks: process.env.USE_MOCK_EXTERNAL_BANKS === 'true',
   teamClientId: process.env.TEAM_CLIENT_ID ?? null,
   teamClientSecret: process.env.TEAM_CLIENT_SECRET ?? null,
   externalClientId: process.env.EXTERNAL_CLIENT_ID ?? null,

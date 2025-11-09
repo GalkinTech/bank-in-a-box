@@ -192,6 +192,100 @@ const fetchExternalBanks = async () => {
   return config.externalBanks;
 };
 
+const fetchProductsFromSource = async (baseUrl) => {
+  if (!baseUrl) {
+    return [];
+  }
+
+  const catalogUrl = `${baseUrl.replace(/\/$/, '')}/products`;
+
+  try {
+    const response = await axios.get(catalogUrl, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    const rawProducts = Array.isArray(response.data?.data?.product)
+      ? response.data.data.product
+      : [];
+
+    return rawProducts.map((product) => normalizeProduct(product)).filter(Boolean);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[refinance] failed to load loan products from source', {
+      baseUrl,
+      url: catalogUrl,
+      message: error?.message,
+      status: error?.response?.status,
+    });
+    return [];
+  }
+};
+
+const expandSourceVariants = (source) => {
+  if (!source) {
+    return [];
+  }
+
+  try {
+    const url = new URL(source);
+    const variants = new Set([url.toString()]);
+
+    if (['localhost', '127.0.0.1'].includes(url.hostname)) {
+      const alternativeHosts = ['127.0.0.1', 'host.docker.internal'];
+      alternativeHosts.forEach((host) => {
+        if (host !== url.hostname) {
+          const altUrl = new URL(url.toString());
+          altUrl.hostname = host;
+          variants.add(altUrl.toString());
+        }
+      });
+    }
+
+    return Array.from(variants);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[refinance] unable to parse product catalog url', { source, message: error?.message });
+    return [source];
+  }
+};
+
+const fetchLocalLoanProducts = async () => {
+  const baseSources = [
+    config.localProductCatalogBaseUrl,
+    config.bankApiBaseUrl,
+    process.env.ADDITIONAL_PRODUCT_CATALOG_URL,
+  ]
+    .map((source) => source?.trim())
+    .filter(Boolean);
+
+  const sources = baseSources.flatMap((source) => expandSourceVariants(source));
+
+  const productsById = new Map();
+
+  // Поддерживаем мок-режим, но приоритет отдаём живым данным
+  for (const source of sources) {
+    const products = await fetchProductsFromSource(source);
+    for (const product of products) {
+      if (!productsById.has(product.productId)) {
+        productsById.set(product.productId, product);
+      }
+    }
+  }
+
+  if (productsById.size) {
+    // eslint-disable-next-line no-console
+    console.info('[refinance] loaded real loan products', {
+      sources,
+      total: productsById.size,
+    });
+    return Array.from(productsById.values());
+  }
+
+  return getMockBankProducts();
+};
+
 const normalizeBankHealth = (bank, result) => {
   const base = bank.baseUrl ?? '';
   const healthUrl = `${base.replace(/\/$/, '')}/health`;
@@ -246,15 +340,15 @@ router.get('/suggestions', async (req, res) => {
   try {
     if (config.useMockData) {
       const mockLoans = getMockLoanDetails();
-      const mockProducts = getMockBankProducts();
-      const enrichedMockLoans = enrichLoansWithOffers(mockLoans, mockProducts);
+      const bankProducts = await fetchLocalLoanProducts();
+      const enrichedMockLoans = enrichLoansWithOffers(mockLoans, bankProducts);
 
       res.json({
         data: enrichedMockLoans,
         meta: {
           total: enrichedMockLoans.length,
           source: 'mock',
-          bank_products_considered: mockProducts.length,
+          bank_products_considered: bankProducts.length,
         },
       });
       return;
@@ -263,9 +357,9 @@ router.get('/suggestions', async (req, res) => {
     const authHeader = ensureAuthToken(req);
     const client = bankApiClient(authHeader);
 
-    const [agreementsResponse, productsResponse, externalLoansRaw] = await Promise.all([
+    const [agreementsResponse, localProducts, externalLoansRaw] = await Promise.all([
       client.get('/product-agreements'),
-      client.get('/products'),
+      fetchLocalLoanProducts(),
       fetchExternalLoans().catch((error) => {
         // eslint-disable-next-line no-console
         console.warn('[refinance] Failed to fetch external loans', error);
@@ -274,8 +368,7 @@ router.get('/suggestions', async (req, res) => {
     ]);
 
     const agreements = agreementsResponse.data?.data ?? [];
-    const rawProducts = productsResponse.data?.data?.product ?? [];
-    const bankProducts = rawProducts.map((product) => normalizeProduct(product)).filter(Boolean);
+    const bankProducts = Array.isArray(localProducts) ? localProducts : [];
 
     const internalLoans = agreements
       .filter((agreement) => agreement.product_type === 'loan')
@@ -362,9 +455,9 @@ router.post('/applications', async (req, res) => {
     const authHeader = ensureAuthToken(req);
     const client = bankApiClient(authHeader);
 
-    const [agreementsResponse, productsResponse, externalLoansRaw] = await Promise.all([
+    const [agreementsResponse, localProducts, externalLoansRaw] = await Promise.all([
       client.get('/product-agreements'),
-      client.get('/products', { params: { product_type: 'loan' } }),
+      fetchLocalLoanProducts(),
       fetchExternalLoans().catch((error) => {
         // eslint-disable-next-line no-console
         console.warn('[refinance] Failed to fetch external loans for application', error);
@@ -373,8 +466,7 @@ router.post('/applications', async (req, res) => {
     ]);
 
     const agreements = agreementsResponse.data?.data ?? [];
-    const rawProducts = productsResponse.data?.data?.product ?? [];
-    const bankProducts = rawProducts.map((product) => normalizeProduct(product)).filter(Boolean);
+    const bankProducts = Array.isArray(localProducts) ? localProducts : [];
 
     const internalLoans = agreements
       .filter((agreement) => agreement.product_type === 'loan')
