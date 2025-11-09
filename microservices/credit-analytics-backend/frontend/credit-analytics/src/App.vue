@@ -4,7 +4,8 @@
       title="Рефинансирование кредитов"
       subtitle="Анализируйте активные кредиты и выбирайте лучшие предложения с одним кликом."
       :is-disabled="isLoading"
-      @refresh="refreshAll"
+      :refresh-label="refreshButtonLabel"
+      @refresh="handleRefreshRequest"
     />
 
     <section v-if="isAuthRequired" class="state state-auth">
@@ -14,93 +15,105 @@
     </section>
 
     <section v-else class="content">
-      <div class="multi-actions-trigger" v-if="!state.multiSelectMode && externalLoans.length > 1 && !isMobile">
-        <button class="btn btn-secondary" type="button" @click="enableMultiSelect">
-          Выбрать несколько кредитов
+      <div v-if="!state.agreementAccepted" class="state state-consent">
+        <h2>Необходим доступ к данным</h2>
+        <p>
+          Чтобы показать актуальные кредиты и предложения, подпишите соглашение на доступ к данным, нажав кнопку выше.
+        </p>
+        <button class="btn btn-primary" type="button" @click="handleRefreshRequest">
+          Подписать согласие
         </button>
       </div>
 
-      <div class="multi-actions" v-if="state.multiSelectMode && !isMobile">
-        <div class="multi-summary">
-          <strong>Выбрано кредитов: {{ state.multiSelectedLoanIds.length }}</strong>
-          <span v-if="state.multiSelectedLoanIds.length">
-            {{ formatCurrency(sumSelectedBalances) }} общий остаток
-          </span>
-        </div>
-        <div class="multi-buttons">
-          <button
-            class="btn btn-secondary"
-            type="button"
-            @click="clearMultiSelection"
-            :disabled="!state.multiSelectedLoanIds.length || state.isMultiSubmitting"
-          >
-            Снять выбор
-          </button>
-          <button
-            class="btn btn-primary"
-            type="button"
-            @click="openBulkRefinance"
-            :disabled="state.multiSelectedLoanIds.length < 2 || state.isMultiSubmitting"
-          >
-            Оформить пакетную заявку
+      <div v-else>
+        <div class="multi-actions-trigger" v-if="!state.multiSelectMode && externalLoans.length > 1 && !isMobile">
+          <button class="btn btn-secondary" type="button" @click="enableMultiSelect">
+            Выбрать несколько кредитов
           </button>
         </div>
-        <div class="multi-status" v-if="state.isMultiSubmitting">
-          <span class="spinner"></span>
-          Формируем пакетную заявку...
+
+        <div class="multi-actions" v-if="state.multiSelectMode && !isMobile">
+          <div class="multi-summary">
+            <strong>Выбрано кредитов: {{ state.multiSelectedLoanIds.length }}</strong>
+            <span v-if="state.multiSelectedLoanIds.length">
+              {{ formatCurrency(sumSelectedBalances) }} общий остаток
+            </span>
+          </div>
+          <div class="multi-buttons">
+            <button
+              class="btn btn-secondary"
+              type="button"
+              @click="clearMultiSelection"
+              :disabled="!state.multiSelectedLoanIds.length || state.isMultiSubmitting"
+            >
+              Снять выбор
+            </button>
+            <button
+              class="btn btn-primary"
+              type="button"
+              @click="openBulkRefinance"
+              :disabled="state.multiSelectedLoanIds.length < 2 || state.isMultiSubmitting"
+            >
+              Оформить пакетную заявку
+            </button>
+          </div>
+          <div class="multi-status" v-if="state.isMultiSubmitting">
+            <span class="spinner"></span>
+            Формируем пакетную заявку...
+          </div>
+          <div
+            class="multi-result"
+            v-if="state.multiSubmissionResult"
+            :class="state.multiSubmissionResult.status"
+          >
+            {{ state.multiSubmissionResult.message }}
+          </div>
         </div>
+
         <div
-          class="multi-result"
-          v-if="state.multiSubmissionResult"
-          :class="state.multiSubmissionResult.status"
+          v-if="externalIssues"
+          class="status-alert"
+          role="alert"
         >
-          {{ state.multiSubmissionResult.message }}
+          <span class="status-alert__icon">⚠️</span>
+          <div class="status-alert__content">
+            <strong>Ограниченная доступность внешних банков.</strong>
+            <p>{{ externalIssues }}</p>
+          </div>
         </div>
+
+        <InfoSection
+          :cards="infoCards"
+          :content-state="infoContentState"
+        />
+
+        <CreditsSection
+          :state="creditsState"
+          :loans="externalLoans"
+          :error-messages="errorMessages"
+          :loading-message="creditsLoadingMessage"
+          :empty-title="creditsEmptyState.title"
+          :empty-description="creditsEmptyState.description"
+          :selected-loan-id="state.selectedLoanId"
+          :is-mobile="isMobile"
+          :current-slide="currentSlide"
+          :is-prev-disabled="currentSlide === 0"
+          :is-next-disabled="currentSlide >= externalLoans.length - 1"
+          :loans-track-ref="setLoansTrack"
+          :format-currency="formatCurrency"
+          :format-percent="formatPercent"
+          :format-term="formatTerm"
+          :allow-multi-select="!isMobile"
+          :multi-selected-ids="state.multiSelectedLoanIds"
+          @retry="handleRefreshRequest"
+          @select-loan="selectLoan"
+          @next-loan="nextLoan"
+          @prev-loan="prevLoan"
+          @go-to-loan="goToLoan"
+          @open-application="openApplicationModal"
+          @toggle-multi="toggleMultiSelection"
+        />
       </div>
-
-      <div
-        v-if="externalIssues"
-        class="status-alert"
-        role="alert"
-      >
-        <span class="status-alert__icon">⚠️</span>
-        <div class="status-alert__content">
-          <strong>Ограниченная доступность внешних банков.</strong>
-          <p>{{ externalIssues }}</p>
-        </div>
-      </div>
-
-      <InfoSection
-        :cards="infoCards"
-        :content-state="infoContentState"
-      />
-
-      <CreditsSection
-        :state="creditsState"
-        :loans="externalLoans"
-        :error-messages="errorMessages"
-        :loading-message="creditsLoadingMessage"
-        :empty-title="creditsEmptyState.title"
-        :empty-description="creditsEmptyState.description"
-        :selected-loan-id="state.selectedLoanId"
-        :is-mobile="isMobile"
-        :current-slide="currentSlide"
-        :is-prev-disabled="currentSlide === 0"
-        :is-next-disabled="currentSlide >= externalLoans.length - 1"
-        :loans-track-ref="setLoansTrack"
-        :format-currency="formatCurrency"
-        :format-percent="formatPercent"
-        :format-term="formatTerm"
-        :allow-multi-select="!isMobile"
-        :multi-selected-ids="state.multiSelectedLoanIds"
-        @retry="refreshAll"
-        @select-loan="selectLoan"
-        @next-loan="nextLoan"
-        @prev-loan="prevLoan"
-        @go-to-loan="goToLoan"
-        @open-application="openApplicationModal"
-        @toggle-multi="toggleMultiSelection"
-      />
     </section>
 
     <ApplicationModal
@@ -118,6 +131,14 @@
       @update:desired-term-months="state.applicationForm.desiredTermMonths = $event"
       @update:comment="state.applicationForm.comment = $event"
     />
+
+    <DataAccessAgreementModal
+      :is-open="state.agreementModalOpen"
+      :is-processing="state.agreementProcessing"
+      :error-message="state.agreementError"
+      @confirm="confirmAgreementAndRefresh"
+      @cancel="closeAgreementModal"
+    />
   </div>
 </template>
 
@@ -127,6 +148,7 @@ import HeaderSection from './components/HeaderSection.vue';
 import InfoSection from './components/InfoSection.vue';
 import CreditsSection from './components/CreditsSection.vue';
 import ApplicationModal from './components/ApplicationModal.vue';
+import DataAccessAgreementModal from './components/DataAccessAgreementModal.vue';
 
 const state = reactive({
   loans: [],
@@ -149,6 +171,10 @@ const state = reactive({
   submissionError: null,
   submissionSuccess: false,
   parentModalActive: false,
+  agreementModalOpen: false,
+  agreementProcessing: false,
+  agreementError: null,
+  agreementAccepted: false,
   multiSelectMode: false,
   multiSelectedLoanIds: [],
   isMultiSubmitting: false,
@@ -170,6 +196,7 @@ const currentSlide = ref(0);
 const isMobile = ref(false);
 let trackScrollHandler = null;
 const TOKEN_STORAGE_KEY = 'creditAnalyticsToken';
+const AGREEMENT_ACCEPTED_KEY = 'creditAnalyticsAgreementAccepted';
 
 const sendToParent = (type, payload) => {
   if (typeof window === 'undefined') {
@@ -300,6 +327,34 @@ const clearPersistedToken = () => {
     window.sessionStorage.removeItem(TOKEN_STORAGE_KEY);
   } catch (error) {
     console.warn('[credit-analytics] Failed to clear persisted token', error);
+  }
+};
+
+const readAgreementAcceptance = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    const stored = window.sessionStorage.getItem(AGREEMENT_ACCEPTED_KEY);
+    return stored === 'true';
+  } catch (error) {
+    console.warn('[credit-analytics] Failed to read agreement acceptance', error);
+    return false;
+  }
+};
+
+const persistAgreementAcceptance = (accepted) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  try {
+    if (accepted) {
+      window.sessionStorage.setItem(AGREEMENT_ACCEPTED_KEY, 'true');
+    } else {
+      window.sessionStorage.removeItem(AGREEMENT_ACCEPTED_KEY);
+    }
+  } catch (error) {
+    console.warn('[credit-analytics] Failed to persist agreement acceptance', error);
   }
 };
 
@@ -616,6 +671,8 @@ const creditsEmptyState = computed(() => ({
   description: 'Чтобы получить предложения по рефинансированию, оформите кредит или свяжитесь с банком.',
 }));
 
+const refreshButtonLabel = computed(() => (state.agreementAccepted ? 'Обновить данные' : 'Подписать согласие'));
+
 const refreshAll = async () => {
   if (!authToken.value) {
     state.initialLoadCompleted = true;
@@ -628,6 +685,86 @@ const refreshAll = async () => {
   state.initialLoadCompleted = true;
   scheduleHeightUpdate();
 };
+
+const openAgreementModal = () => {
+  state.agreementError = null;
+  state.agreementModalOpen = true;
+  scheduleHeightUpdate();
+};
+
+const closeAgreementModal = () => {
+  state.agreementModalOpen = false;
+  state.agreementProcessing = false;
+  scheduleHeightUpdate();
+};
+
+const confirmAgreementAndRefresh = async () => {
+  if (state.agreementProcessing) {
+    return;
+  }
+
+  state.agreementProcessing = true;
+  state.agreementError = null;
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    state.agreementAccepted = true;
+    persistAgreementAcceptance(true);
+    closeAgreementModal();
+    await refreshAll();
+  } catch (error) {
+    console.error('[credit-analytics] Failed to process agreement confirmation', error);
+    state.agreementError = 'Не удалось подтвердить согласие. Попробуйте ещё раз.';
+  } finally {
+    state.agreementProcessing = false;
+    scheduleHeightUpdate();
+  }
+};
+
+const resetAgreementAcceptance = ({ showModal = false } = {}) => {
+  persistAgreementAcceptance(false);
+  state.agreementAccepted = false;
+  state.agreementProcessing = false;
+  state.agreementError = null;
+  state.loans = [];
+  state.offers = [];
+  state.selectedLoanId = null;
+  state.multiSelectedLoanIds = [];
+  state.multiSelectMode = false;
+
+  if (showModal) {
+    openAgreementModal();
+  } else {
+    state.agreementModalOpen = false;
+    scheduleHeightUpdate();
+  }
+};
+
+const ensureAgreementAccepted = () => {
+  const storedAccepted = readAgreementAcceptance();
+
+  if (!storedAccepted) {
+    resetAgreementAcceptance({ showModal: true });
+    return false;
+  }
+
+  if (!state.agreementAccepted) {
+    state.agreementAccepted = true;
+  }
+
+  return true;
+};
+
+const handleRefreshRequest = () => {
+  if (!ensureAgreementAccepted()) {
+    return;
+  }
+  refreshAll();
+};
+
+if (typeof window !== 'undefined') {
+  window.resetCreditAnalyticsAgreement = () => resetAgreementAcceptance({ showModal: true });
+}
 
 const offersByLoanId = computed(() => {
   return state.offers.reduce((acc, loan) => {
@@ -1055,6 +1192,8 @@ onMounted(() => {
   } else {
     requestAuthTokenFromParent();
   }
+
+  state.agreementAccepted = readAgreementAcceptance();
 });
 
 onUnmounted(() => {
